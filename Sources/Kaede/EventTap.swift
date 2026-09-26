@@ -93,12 +93,14 @@ final class EventTap {
         do {
             let text = try replacement.text(using: converter)
             poster.deleteBackward(replacement.deleteCount)
-            poster.type(text)
+            poster.type(text + replacement.suffix)
             log.info("Replaced with \(text.count, privacy: .public) characters.")
         } catch {
-            // The swallowed Enter is not sent: the run stays on screen as typed.
+            // The run stays on screen as typed. The space that triggered the conversion is still
+            // typed; a swallowed Enter is not sent.
             log.error("Conversion failed: \(error)")
             NSSound.beep()
+            poster.type(replacement.suffix)
         }
         for key in engine.finishReplacement() {
             poster.replay(key)

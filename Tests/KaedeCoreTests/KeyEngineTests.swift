@@ -123,11 +123,12 @@ import Testing
         #expect(engine.finishReplacement().isEmpty)
     }
 
-    @Test func spaceAfterAConvertingWordReplacesItAndReplaysTheSpace() {
+    @Test func spaceAfterAConvertingWordReplacesItAndTypesTheSpaceAfterIt() {
         engine.type("jajsd/a")
         let space = RawKey(keyCode: 49, character: " ")
-        #expect(engine.handle(space) == .replace(Replacement(typed: "jajsd/a", pieces: [.romaji("tatoeba")])))
-        #expect(engine.finishReplacement() == [space])
+        // Typed with the replacement rather than replayed: a replayed space would pick the next candidate
+        #expect(engine.handle(space) == .replace(Replacement(typed: "jajsd/a", pieces: [.romaji("tatoeba")], suffix: " ")))
+        #expect(engine.finishReplacement().isEmpty)
     }
 
     @Test func spaceAfterAPassingWordPassesAndStartsANewRun() {

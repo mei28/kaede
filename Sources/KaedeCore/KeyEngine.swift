@@ -74,11 +74,11 @@ public final class KeyEngine {
             return .suppress
         }
         if KeyCode.enter.contains(key.keyCode) {
-            return endRun(replaying: [])
+            return endRun(suffix: "")
         }
         if key.keyCode == KeyCode.space, !key.command, !key.control, !key.option {
             // Words never share a segment across a space, so the word before it can convert now
-            return endRun(replaying: [key])
+            return endRun(suffix: " ")
         }
         record(key)
         return .pass
@@ -112,8 +112,8 @@ public final class KeyEngine {
     }
 
     /// Plans the run and starts a new one. When the run converts, the key that ended it is
-    /// suppressed and, if listed in `replaying`, typed again after the replacement.
-    private func endRun(replaying keys: [RawKey]) -> KeyResponse {
+    /// suppressed, and `suffix` is what it would have typed after the converted text.
+    private func endRun(suffix: String) -> KeyResponse {
         let decision = planner.plan(run)
         let typed = run.screenText
         run = Run()
@@ -121,8 +121,8 @@ public final class KeyEngine {
         case .pass:
             return .pass
         case let .convert(pieces):
-            heldKeys = keys
-            return .replace(Replacement(typed: typed, pieces: pieces))
+            heldKeys = []
+            return .replace(Replacement(typed: typed, pieces: pieces, suffix: suffix))
         }
     }
 
