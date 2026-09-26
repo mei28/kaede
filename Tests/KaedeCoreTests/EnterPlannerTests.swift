@@ -119,4 +119,10 @@ import Testing
         // "/" is neither a letter nor romaji, so nothing reads "a/b"
         #expect(planner.plan(Run(typing: "jajsd/a a/b")) == .convert([.romaji("tatoeba"), .verbatim(" a/b")]))
     }
+
+    @Test(arguments: ["zenzai", "azookey"])
+    func keepsRomajiLookingProperNounsAsTyped(typed: String) throws {
+        let lexicon = try EnglishLexicon(contentsOfFiles: ["/usr/share/dict/words"] + bundledWordLists)
+        #expect(EnterPlanner(lexicon: lexicon).plan(Run(typing: typed)) == .pass)
+    }
 }
