@@ -49,22 +49,11 @@ public struct EnterPlanner: Sendable {
         run.screenText.split(separator: " ").allSatisfy { lexicon.contains(String($0)) }
     }
 
-    /// A space-free stretch of the run, read in both layouts (one character per element).
-    struct Token: Equatable {
-        var qwerty: String
-        var ebi: String
-    }
-
-    enum Item: Equatable {
-        case token(Token)
-        case separator(String)
-    }
-
     /// Splits the run into tokens and the spaces between them, in order.
-    static func items(of run: Run) -> [Item] {
+    static func items(of run: Run) -> [RunItem] {
         let qwerty = Array(run.reading(in: .qwerty))
         let ebi = Array(run.reading(in: .ebi))
-        var items: [Item] = []
+        var items: [RunItem] = []
         var start = 0
         while start < qwerty.count {
             let isSpace = qwerty[start] == " "
