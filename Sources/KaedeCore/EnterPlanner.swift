@@ -30,10 +30,7 @@ public struct EnterPlanner: Sendable {
             return .pass
         }
         let items = Self.items(of: run)
-        let segments: [[Segment]] = items.map { item in
-            if case let .token(token) = item { segmentsOrAsTyped(token) } else { [] }
-        }
-        return Self.decision(items: items, segments: segments)
+        return Self.decision(items: items, segments: bestSegments(of: items))
     }
 
     /// Distinct plans for a run that converts: the plan itself first, then plans that differ from
@@ -42,22 +39,8 @@ public struct EnterPlanner: Sendable {
     public func alternatives(for run: Run, perToken: Int) -> [[ConversionPiece]] {
         guard case .convert = plan(run) else { return [] }
         let items = Self.items(of: run)
-        let options: [[[Segment]]] = items.map { item in
-            guard case let .token(token) = item else { return [[]] }
-            let top = segmenter.topSegmentations(of: token, count: perToken)
-            return top.isEmpty ? [segmentsOrAsTyped(token)] : top
-        }
-        let best = options.map { $0[0] }
-        var choices = [best]
-        for (index, tokenOptions) in options.enumerated() {
-            for option in tokenOptions.dropFirst() {
-                var choice = best
-                choice[index] = option
-                choices.append(choice)
-            }
-        }
         var alternatives: [[ConversionPiece]] = []
-        for choice in choices {
+        for choice in choices(of: items, perToken: perToken) {
             if case let .convert(pieces) = Self.decision(items: items, segments: choice), !alternatives.contains(pieces) {
                 alternatives.append(pieces)
             }
@@ -71,9 +54,7 @@ public struct EnterPlanner: Sendable {
     public func handOff(for run: Run) -> HandOff? {
         guard run.strokeCount >= Self.minimumStrokes else { return nil }
         let items = Self.items(of: run)
-        var segments: [[Segment]] = items.map { item in
-            if case let .token(token) = item { segmentsOrAsTyped(token) } else { [] }
-        }
+        var segments = bestSegments(of: items)
         guard case .token = items.last, let last = segments.indices.last else { return nil }
         let tailCount = segments[last].reversed().prefix { $0.kind.isJapanese }.count
         guard tailCount > 0 else { return nil }
@@ -94,6 +75,33 @@ public struct EnterPlanner: Sendable {
             // One screen character per key, so the tail's length in keys is its segments' length
             typedTail: String(typed.suffix(tail.map(\.text.count).reduce(0, +)))
         )
+    }
+
+    /// The best segments for each item (separators get an empty list).
+    private func bestSegments(of items: [RunItem]) -> [[Segment]] {
+        items.map { item in
+            if case let .token(token) = item { segmentsOrAsTyped(token) } else { [] }
+        }
+    }
+
+    /// The best segments for every item, then choices that differ from it in one token, using
+    /// that token's 2nd to `perToken`-th segmentation.
+    private func choices(of items: [RunItem], perToken: Int) -> [[[Segment]]] {
+        let options: [[[Segment]]] = items.map { item in
+            guard case let .token(token) = item else { return [[]] }
+            let top = segmenter.topSegmentations(of: token, count: perToken)
+            return top.isEmpty ? [segmentsOrAsTyped(token)] : top
+        }
+        let best = options.map { $0[0] }
+        var choices = [best]
+        for (index, tokenOptions) in options.enumerated() {
+            for option in tokenOptions.dropFirst() {
+                var choice = best
+                choice[index] = option
+                choices.append(choice)
+            }
+        }
+        return choices
     }
 
     /// A token nothing can read stays as typed.
