@@ -1,15 +1,16 @@
 /// Which layout a segment's keys were typed for, and which language they spell.
 enum SegmentKind: CaseIterable, Sendable {
     case qwertyEnglish
+    case ebiEnglish
     case qwertyJapanese
     case ebiJapanese
 
     var isJapanese: Bool {
-        self != .qwertyEnglish
+        self == .qwertyJapanese || self == .ebiJapanese
     }
 
     var isEbi: Bool {
-        self == .ebiJapanese
+        self == .ebiEnglish || self == .ebiJapanese
     }
 }
 
@@ -31,6 +32,9 @@ struct Segmenter: Sendable {
     static let knownEnglishStroke = 0.5
     /// Unknown QWERTY words are allowed, as typed, but cost more than any Japanese reading.
     static let unknownEnglishStroke = 2.0
+    /// English typed with Ebi fingering is rare, and Ebi is mostly Japanese: known words only,
+    /// and dearer than Japanese so a romaji reading wins.
+    static let ebiEnglishStroke = 1.5
     /// Charged each time the kind changes inside a token, so a split needs a reason.
     static let switchCost = 4.0
 
@@ -103,8 +107,10 @@ struct Segmenter: Sendable {
         var end = start
         while end < reading.count, reading[end].isLetter {
             end += 1
-            let perStroke = lexicon.contains(String(reading[start..<end]))
-                ? Self.knownEnglishStroke
+            let isKnown = lexicon.contains(String(reading[start..<end]))
+            if kind.isEbi && !isKnown { continue }
+            let perStroke = kind.isEbi ? Self.ebiEnglishStroke
+                : isKnown ? Self.knownEnglishStroke
                 : Self.unknownEnglishStroke
             steps.append(Step(end: end, cost: Double(end - start) * perStroke))
             // "," and "." after a word are English punctuation, not 、 and 。

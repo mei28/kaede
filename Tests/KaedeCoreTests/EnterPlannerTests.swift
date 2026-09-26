@@ -108,4 +108,15 @@ import Testing
         let lexicon = try EnglishLexicon(contentsOfFiles: ["/usr/share/dict/words"] + bundledWordLists)
         #expect(EnterPlanner(lexicon: lexicon).plan(Run(typing: typed)) == .pass)
     }
+
+    @Test func rewritesEnglishTypedWithEbiFingeringToItsEbiReading() {
+        // "world" typed with Ebi fingering shows "usiwm" on screen
+        let planner = EnterPlanner(lexicon: EnglishLexicon(wordList: "world\n"))
+        #expect(planner.plan(Run(typing: "usiwm")) == .convert([.verbatim("world")]))
+    }
+
+    @Test func keepsATokenNoSegmentationCoversAsTyped() {
+        // "/" is neither a letter nor romaji, so nothing reads "a/b"
+        #expect(planner.plan(Run(typing: "jajsd/a a/b")) == .convert([.romaji("tatoeba"), .verbatim(" a/b")]))
+    }
 }

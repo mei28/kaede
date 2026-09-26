@@ -30,13 +30,17 @@ public struct EnterPlanner: Sendable {
             return .pass
         }
         var pieces: [ConversionPiece] = []
+        // Whether any segment reads differently from what the keys already put on screen
+        var changesScreen = false
         for item in Self.items(of: run) {
             switch item {
             case let .separator(text):
                 pieces.appendVerbatim(text)
             case let .token(token):
-                guard let segments = segmenter.segments(of: token) else { return .pass }
+                // A token nothing can read stays as typed
+                let segments = segmenter.segments(of: token) ?? [Segment(kind: .qwertyEnglish, text: token.qwerty)]
                 for segment in segments {
+                    changesScreen = changesScreen || segment.kind != .qwertyEnglish
                     if segment.kind.isJapanese {
                         pieces.appendRomaji(segment.text)
                     } else {
@@ -45,9 +49,7 @@ public struct EnterPlanner: Sendable {
                 }
             }
         }
-        // A run of English only is already on screen as it should be
-        let hasJapanese = pieces.contains { if case .romaji = $0 { true } else { false } }
-        return hasJapanese ? .convert(pieces) : .pass
+        return changesScreen ? .convert(pieces) : .pass
     }
 
     /// Splits the run into tokens of layout keys and the literals between them, in order.
