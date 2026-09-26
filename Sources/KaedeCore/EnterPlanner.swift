@@ -42,7 +42,7 @@ public struct EnterPlanner: Sendable {
 
     /// Distinct plans for a run that converts: the plan itself first, then plans that differ from
     /// it in one token, using that token's 2nd to `perToken`-th segmentation. Empty when the
-    /// run passes. A chooser (Jev) picks among the sentences these convert to.
+    /// run passes. They become candidates the user can step through after a conversion.
     public func alternatives(for run: Run, perToken: Int) -> [[ConversionPiece]] {
         guard case .convert = plan(run) else { return [] }
         let items = Self.items(of: run)

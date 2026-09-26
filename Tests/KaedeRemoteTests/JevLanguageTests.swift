@@ -53,10 +53,20 @@ import Testing
         #expect(try JevLanguageResponse.answer(from: answer(choice, confidence), status: 200) == expected)
     }
 
-    @Test func failsOnAnHTTPErrorOrAnUnknownChoice() {
-        #expect(throws: JevError.rateLimited) {
-            try JevLanguageResponse.answer(from: Data("{}".utf8), status: 429)
+    @Test(arguments: [
+        (401, JevError.unauthorized),
+        (422, JevError.invalidRequest(body: "{}")),
+        (429, JevError.rateLimited),
+        (529, JevError.overloaded),
+        (500, JevError.http(status: 500, body: "{}")),
+    ])
+    func failsWithAnErrorPerStatus(status: Int, error: JevError) {
+        #expect(throws: error) {
+            try JevLanguageResponse.answer(from: Data("{}".utf8), status: status)
         }
+    }
+
+    @Test func failsOnAnUnknownChoice() {
         #expect(throws: JevError.unknownChoice("fr")) {
             try JevLanguageResponse.answer(from: answer("fr", 0.9), status: 200)
         }
