@@ -40,10 +40,10 @@ import Testing
         #expect(planner.plan(Run(typing: "jajsd/a2")) == .pass)
     }
 
-    @Test func convertsEveryChunkUnlessTheWholeRunIsEnglish() {
-        // The lexicon rule looks at the whole run, so "and" next to Japanese is read in Ebi too
+    @Test func keepsAnEnglishWordNextToJapanese() {
+        // "and" read in Ebi is "age", but as a known English word it stays as typed
         #expect(planner.plan(Run(typing: "and jajsd/a")) == .convert([
-            .romaji("age"), .verbatim(" "), .romaji("tatoeba"),
+            .verbatim("and "), .romaji("tatoeba"),
         ]))
     }
 
@@ -53,5 +53,11 @@ import Testing
 
     @Test func convertsJapaneseTypedInQwerty() {
         #expect(planner.plan(Run(typing: "watashino")) == .convert([.romaji("watashino")]))
+    }
+
+    @Test func splitsKnownQwertyEnglishFromEbiJapaneseInOneToken() {
+        // "api" typed in QWERTY, then "hamadate" typed with Ebi fingering, no space between
+        let planner = EnterPlanner(lexicon: EnglishLexicon(wordList: "api\n"))
+        #expect(planner.plan(Run(typing: "api;a,amajd")) == .convert([.verbatim("api"), .romaji("hamadate")]))
     }
 }

@@ -19,34 +19,35 @@ public struct EnterPlanner: Sendable {
     /// Too few strokes to tell Japanese from a stray key.
     static let minimumStrokes = 3
 
-    let lexicon: EnglishLexicon
+    let segmenter: Segmenter
 
     public init(lexicon: EnglishLexicon) {
-        self.lexicon = lexicon
+        segmenter = Segmenter(lexicon: lexicon)
     }
 
     public func plan(_ run: Run) -> EnterDecision {
-        if run.strokeCount < Self.minimumStrokes || isEnglish(run) {
+        if run.strokeCount < Self.minimumStrokes {
             return .pass
         }
         var pieces: [ConversionPiece] = []
         for item in Self.items(of: run) {
             switch item {
             case let .separator(text):
-                pieces.append(.verbatim(text))
+                pieces.appendVerbatim(text)
             case let .token(token):
-                guard let romaji = [token.ebi, token.qwerty].first(where: RomajiParser.isRomaji) else {
-                    return .pass
+                guard let segments = segmenter.segments(of: token) else { return .pass }
+                for segment in segments {
+                    if segment.kind.isJapanese {
+                        pieces.append(.romaji(segment.text))
+                    } else {
+                        pieces.appendVerbatim(segment.text)
+                    }
                 }
-                pieces.append(.romaji(romaji))
             }
         }
-        return .convert(pieces)
-    }
-
-    /// Guards against Ebi misreadings of real English, such as "and" read as "age".
-    private func isEnglish(_ run: Run) -> Bool {
-        run.screenText.split(separator: " ").allSatisfy { lexicon.contains(String($0)) }
+        // A run of English only is already on screen as it should be
+        let hasJapanese = pieces.contains { if case .romaji = $0 { true } else { false } }
+        return hasJapanese ? .convert(pieces) : .pass
     }
 
     /// Splits the run into tokens and the spaces between them, in order.
@@ -67,5 +68,16 @@ public struct EnterPlanner: Sendable {
             start = end
         }
         return items
+    }
+}
+
+private extension [ConversionPiece] {
+    /// Appends text to the last piece when it is verbatim too, so text kept as typed stays in one piece.
+    mutating func appendVerbatim(_ text: String) {
+        if case let .verbatim(previous) = last {
+            self[count - 1] = .verbatim(previous + text)
+        } else {
+            append(.verbatim(text))
+        }
     }
 }
