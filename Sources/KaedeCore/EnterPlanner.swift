@@ -29,23 +29,34 @@ public struct EnterPlanner: Sendable {
         if run.strokeCount < Self.minimumStrokes {
             return .pass
         }
+        let items = Self.items(of: run)
+        let segments: [[Segment]] = items.map { item in
+            if case let .token(token) = item { segmentsOrAsTyped(token) } else { [] }
+        }
+        return Self.decision(items: items, segments: segments)
+    }
+
+    /// A token nothing can read stays as typed.
+    private func segmentsOrAsTyped(_ token: Token) -> [Segment] {
+        segmenter.segments(of: token) ?? [Segment(kind: .qwertyEnglish, text: token.qwerty)]
+    }
+
+    /// Assembles the pieces for the run, given the segments chosen for each of its tokens
+    /// (separators get an empty list).
+    private static func decision(items: [RunItem], segments: [[Segment]]) -> EnterDecision {
         var pieces: [ConversionPiece] = []
         // Whether any segment reads differently from what the keys already put on screen
         var changesScreen = false
-        for item in Self.items(of: run) {
-            switch item {
-            case let .separator(text):
+        for (item, segments) in zip(items, segments) {
+            if case let .separator(text) = item {
                 pieces.appendVerbatim(text)
-            case let .token(token):
-                // A token nothing can read stays as typed
-                let segments = segmenter.segments(of: token) ?? [Segment(kind: .qwertyEnglish, text: token.qwerty)]
-                for segment in segments {
-                    changesScreen = changesScreen || segment.kind != .qwertyEnglish
-                    if segment.kind.isJapanese {
-                        pieces.appendRomaji(segment.text)
-                    } else {
-                        pieces.appendVerbatim(segment.text)
-                    }
+            }
+            for segment in segments {
+                changesScreen = changesScreen || segment.kind != .qwertyEnglish
+                if segment.kind.isJapanese {
+                    pieces.appendRomaji(segment.text)
+                } else {
+                    pieces.appendVerbatim(segment.text)
                 }
             }
         }
