@@ -10,7 +10,7 @@ func fail(_ message: String) -> Never {
     exit(1)
 }
 
-let methods = ["rules"]
+let methods = ["rules", "zenzai"]
 let arguments = CommandLine.arguments.dropFirst()
 guard arguments.count == 1, let method = arguments.first, methods.contains(method) else {
     fail("usage: kaede-eval <\(methods.joined(separator: "|"))>")
@@ -29,10 +29,28 @@ do {
 }
 let dictionary = root.appending(path: ".build/checkouts/AzooKeyKanaKanjiConverter/Sources/KanaKanjiConverterModuleWithDefaultDictionary/azooKey_dictionary_storage/Dictionary")
 
-let converter: any LineConverting = RulesLineConverter(
-    planner: EnterPlanner(lexicon: lexicon),
-    converter: AzooKeyConverter(dictionaryDirectory: dictionary, memoryDirectory: FileManager.default.temporaryDirectory)
-)
+let zenzaiWeight = root.appending(path: "Models/zenz-v3.1-small.gguf")
+
+func azooKey(zenzai: Bool) -> AzooKeyConverter {
+    AzooKeyConverter(
+        dictionaryDirectory: dictionary,
+        memoryDirectory: FileManager.default.temporaryDirectory,
+        zenzaiWeight: zenzai ? zenzaiWeight : nil
+    )
+}
+
+let converter: any LineConverting = switch method {
+case "rules": RulesLineConverter(planner: EnterPlanner(lexicon: lexicon), converter: azooKey(zenzai: false))
+case "zenzai": RulesLineConverter(planner: EnterPlanner(lexicon: lexicon), converter: azooKey(zenzai: true))
+default: fail("unknown method \(method)")
+}
+
+// One untimed conversion first, so loading models and opening connections is not billed to line 1
+do {
+    _ = try await converter.convert(corpus[0].typed)
+} catch {
+    fail("warm-up failed: \(error)")
+}
 
 var results: [EvaluationResult] = []
 let clock = ContinuousClock()

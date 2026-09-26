@@ -1,6 +1,10 @@
 // swift-tools-version: 6.2
 import PackageDescription
 
+// With the Zenzai trait, azooKey's modules are built with C++ interop, and every target that
+// imports them has to read their C++ headers the same way.
+let cxxInterop: [SwiftSetting] = [.interoperabilityMode(.Cxx)]
+
 let package = Package(
     name: "Kaede",
     platforms: [
@@ -8,7 +12,7 @@ let package = Package(
     ],
     dependencies: [
         // 0.x の間はマイナー更新で破壊的変更がありうるため upToNextMinor で固定する。
-        .package(url: "https://github.com/azooKey/AzooKeyKanaKanjiConverter", .upToNextMinor(from: "0.11.2")),
+        .package(url: "https://github.com/azooKey/AzooKeyKanaKanjiConverter", .upToNextMinor(from: "0.11.2"), traits: ["Zenzai"]),
     ],
     targets: [
         // テスト可能なロジック層（配列、ラン、ローマ字判定、Enter の判断）。AppKit に依存しない。
@@ -21,17 +25,22 @@ let package = Package(
             dependencies: [
                 "KaedeCore",
                 .product(name: "KanaKanjiConverterModule", package: "AzooKeyKanaKanjiConverter"),
-            ]
+            ],
+            swiftSettings: cxxInterop
         ),
         // イベントタップを持つ常駐プロセス本体。
         .executableTarget(
             name: "Kaede",
-            dependencies: ["KaedeCore", "KaedeConverter"]
+            dependencies: ["KaedeCore", "KaedeConverter"],
+            swiftSettings: cxxInterop,
+            // just bundle puts llama.framework (linked through the Zenzai trait) in Contents/Frameworks
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]
         ),
         // 変換方式を同じ例文で比べる開発用のコマンド（just eval）。
         .executableTarget(
             name: "KaedeEval",
-            dependencies: ["KaedeCore", "KaedeConverter"]
+            dependencies: ["KaedeCore", "KaedeConverter"],
+            swiftSettings: cxxInterop
         ),
         // KaedeCore のユニットテスト（swift test で実行）。
         .testTarget(
@@ -41,7 +50,8 @@ let package = Package(
         // 実辞書を使う KaedeConverter の結合テスト。
         .testTarget(
             name: "KaedeConverterTests",
-            dependencies: ["KaedeConverter"]
+            dependencies: ["KaedeConverter"],
+            swiftSettings: cxxInterop
         ),
     ]
 )

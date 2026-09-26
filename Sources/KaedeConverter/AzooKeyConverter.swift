@@ -4,6 +4,8 @@ import KanaKanjiConverterModule
 
 public enum AzooKeyConverterError: Error, Equatable {
     case noCandidate(romaji: String)
+    /// azooKey could not load the zenz weight; `status` is its own report.
+    case zenzaiUnavailable(status: String)
 }
 
 /// Converts romaji with AzooKeyKanaKanjiConverter, taking the first candidate.
@@ -13,12 +15,15 @@ public enum AzooKeyConverterError: Error, Equatable {
 public final class AzooKeyConverter: KanaKanjiConverting {
     private let converter: KanaKanjiConverter
     private let options: ConvertRequestOptions
+    private let zenzaiWeight: URL?
 
     /// - Parameters:
     ///   - dictionaryDirectory: azooKey_dictionary_storage's `Dictionary` directory.
     ///   - memoryDirectory: required by the converter even though learning is off.
-    public init(dictionaryDirectory: URL, memoryDirectory: URL) {
+    ///   - zenzaiWeight: a zenz gguf file; when given, Zenzai (the neural converter) picks the kanji.
+    public init(dictionaryDirectory: URL, memoryDirectory: URL, zenzaiWeight: URL? = nil) {
         converter = KanaKanjiConverter(dicdataStore: DicdataStore(dictionaryURL: dictionaryDirectory, preloadDictionary: true))
+        self.zenzaiWeight = zenzaiWeight
         options = ConvertRequestOptions(
             requireJapanesePrediction: false,
             requireEnglishPrediction: false,
@@ -28,6 +33,10 @@ public final class AzooKeyConverter: KanaKanjiConverting {
             sharedContainerURL: memoryDirectory,
             textReplacer: .empty,
             specialCandidateProviders: nil,
+            // One inference is what the azooKey docs recommend for normal use
+            zenzaiMode: zenzaiWeight.map {
+                .on(weight: $0, inferenceLimit: 1, personalizationMode: nil, versionDependentMode: .v3(.init()))
+            } ?? .off,
             metadata: .init(versionString: "Kaede")
         )
     }
@@ -35,7 +44,9 @@ public final class AzooKeyConverter: KanaKanjiConverting {
     public func convert(romaji: String) throws -> String {
         let composing = Self.composingText(for: romaji)
         defer { converter.stopComposition() }
-        guard let first = converter.requestCandidates(composing, options: options).mainResults.first else {
+        let results = converter.requestCandidates(composing, options: options)
+        try checkZenzaiLoaded()
+        guard let first = results.mainResults.first else {
             throw AzooKeyConverterError.noCandidate(romaji: romaji)
         }
         return first.text
@@ -66,4 +77,14 @@ public final class AzooKeyConverter: KanaKanjiConverting {
     }
 
     private static let japanesePunctuation: [Character: String] = [",": "、", ".": "。"]
+
+    /// azooKey converts without Zenzai when the weight fails to load, reporting it only in
+    /// `zenzStatus` ("load <url>" on success, the error appended on failure).
+    private func checkZenzaiLoaded() throws {
+        guard let zenzaiWeight else { return }
+        let loaded = "load \(zenzaiWeight.absoluteString)"
+        guard converter.zenzStatus == loaded else {
+            throw AzooKeyConverterError.zenzaiUnavailable(status: converter.zenzStatus)
+        }
+    }
 }
