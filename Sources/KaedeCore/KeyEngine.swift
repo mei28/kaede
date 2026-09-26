@@ -72,7 +72,7 @@ public final class KeyEngine {
     /// Words recently finished in this field, as Kaede read them: context for questions.
     private var recentText = ""
     /// jev-auto-ime sends the last 240 characters before the caret.
-    static let recentTextLimit = 240
+    public static let recentTextLimit = 240
     /// The last conversion, while the user can still step through its candidates.
     private var correction: Correction?
 

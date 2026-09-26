@@ -67,8 +67,9 @@ case "claude":
         transport: URLSessionTransport()
     )
 case "jev":
-    JevLineConverter(
-        request: JevRequest(apiKey: apiKey(named: "jev")),
+    // Jev settles the language of ambiguous words; the rest goes by the rules, with Zenzai
+    JevLanguageLineConverter(
+        request: JevLanguageRequest(apiKey: apiKey(named: "jev")),
         planner: EnterPlanner(lexicon: lexicon),
         converter: azooKey(zenzai: true),
         transport: URLSessionTransport()
