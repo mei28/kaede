@@ -1,0 +1,26 @@
+# macOS
+.DS_Store
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Xcode (Package.swift を Xcode で開いた場合の生成物)
+*.xcodeproj
+xcuserdata/
+DerivedData/
+
+# 配布用ビルド成果物
+/dist/
+*.app
+
+# 一時的な設計メモ
+.tmp/
+
+# Claude Code のローカル設定（マシン固有）
+.claude/settings.local.json
+
+# 個人用（公開しない）: 仕様書・メモ
+CLAUDE.md
+TODO.md
