@@ -6,6 +6,7 @@ import Testing
 /// Converts romaji to itself in uppercase, so the candidate sentences are easy to predict.
 struct UppercaseConverter: KanaKanjiConverting {
     func convert(romaji: String) throws -> String { romaji.uppercased() }
+    func candidates(romaji: String, limit: Int) throws -> [String] { [romaji.uppercased()] }
 }
 
 @Suite struct JevLineConverterTests {

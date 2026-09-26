@@ -67,4 +67,13 @@ private let zenzaiWeight = URL(filePath: #filePath)
             try zenzai.convert(romaji: "henkan")
         }
     }
+
+    @Test func listsCandidatesWithTheFirstOneFirst() throws {
+        let candidates = try converter.candidates(romaji: "kitinntohennkann", limit: 5)
+        #expect(candidates.first == (try converter.convert(romaji: "kitinntohennkann")))
+        #expect(candidates.contains("きちんと返還"))
+        #expect(candidates.contains("きちんと変換"))
+        #expect(candidates.count <= 5)
+        #expect(Set(candidates).count == candidates.count)
+    }
 }

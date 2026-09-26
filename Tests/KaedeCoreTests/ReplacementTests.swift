@@ -8,6 +8,10 @@ private struct DictionaryConverter: KanaKanjiConverting {
         guard let converted = table[romaji] else { throw Unconvertible() }
         return converted
     }
+
+    func candidates(romaji: String, limit: Int) throws -> [String] {
+        [try convert(romaji: romaji)]
+    }
 }
 
 private struct Unconvertible: Error {}

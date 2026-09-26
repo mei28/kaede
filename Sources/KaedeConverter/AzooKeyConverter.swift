@@ -42,14 +42,23 @@ public final class AzooKeyConverter: KanaKanjiConverting {
     }
 
     public func convert(romaji: String) throws -> String {
+        try candidates(romaji: romaji, limit: 1)[0]
+    }
+
+    public func candidates(romaji: String, limit: Int) throws -> [String] {
         let composing = Self.composingText(for: romaji)
         defer { converter.stopComposition() }
         let results = converter.requestCandidates(composing, options: options)
         try checkZenzaiLoaded()
-        guard let first = results.mainResults.first else {
+        var texts: [String] = []
+        for candidate in results.mainResults where !texts.contains(candidate.text) {
+            texts.append(candidate.text)
+            if texts.count == limit { break }
+        }
+        guard !texts.isEmpty else {
             throw AzooKeyConverterError.noCandidate(romaji: romaji)
         }
-        return first.text
+        return texts
     }
 
     /// The default roman2kana table has no entries for "," and ".", and leaves a final "n"
