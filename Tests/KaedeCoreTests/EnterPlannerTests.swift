@@ -156,4 +156,33 @@ import Testing
         #expect(planner.handOff(for: Run(typing: "jajsd/athe")) == nil)
         #expect(planner.handOff(for: Run(typing: "the cat")) == nil)
     }
+
+    // MARK: Words the rules cannot settle
+
+    let wordsPlanner = EnterPlanner(lexicon: EnglishLexicon(wordList: "are\nand\nhas\nthe\ncat\n"))
+
+    @Test(arguments: [
+        ("are", true),  // English "are", or あれ typed in QWERTY
+        ("jajsd/a", false),  // every reading is Japanese
+        ("the cat", false),  // no reading is Japanese
+    ])
+    func aWordIsAmbiguousWhenItsReadingsDisagreeOnLanguage(typed: String, ambiguous: Bool) {
+        #expect(wordsPlanner.isAmbiguous(Run(typing: typed)) == ambiguous)
+    }
+
+    @Test func englishKeepsAnAmbiguousWordAsTyped() {
+        #expect(wordsPlanner.plan(Run(typing: "are"), preferring: .english) == .pass)
+        #expect(wordsPlanner.handOff(for: Run(typing: "are"), preferring: .english) == nil)
+    }
+
+    @Test(arguments: [
+        ("are", "are"),  // QWERTY romaji あれ
+        ("has", "kao"),  // Ebi fingering of かお
+    ])
+    func japaneseReadsAnAmbiguousWordAsRomaji(typed: String, romaji: String) {
+        #expect(wordsPlanner.plan(Run(typing: typed), preferring: .japanese) == .convert([.romaji(romaji)]))
+        #expect(wordsPlanner.handOff(for: Run(typing: typed), preferring: .japanese) == HandOff(
+            typed: typed, settled: [], romaji: romaji, typedTail: typed
+        ))
+    }
 }

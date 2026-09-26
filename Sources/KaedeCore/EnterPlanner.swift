@@ -15,6 +15,12 @@ public enum EnterDecision: Equatable, Sendable {
 }
 
 /// Decides, from rules alone, whether a run is Japanese typed with Ebi fingering.
+/// A language an ambiguous word can be settled to.
+public enum Language: Sendable {
+    case japanese
+    case english
+}
+
 public struct EnterPlanner: Sendable {
     /// Too few strokes to tell Japanese from a stray key.
     static let minimumStrokes = 3
@@ -25,12 +31,13 @@ public struct EnterPlanner: Sendable {
         segmenter = Segmenter(lexicon: lexicon)
     }
 
-    public func plan(_ run: Run) -> EnterDecision {
+    /// With a preference, ambiguous words (see `isAmbiguous`) are read in that language.
+    public func plan(_ run: Run, preferring language: Language? = nil) -> EnterDecision {
         if run.strokeCount < Self.minimumStrokes {
             return .pass
         }
         let items = Self.items(of: run)
-        return Self.decision(items: items, segments: bestSegments(of: items))
+        return Self.decision(items: items, segments: segments(of: items, preferring: language))
     }
 
     /// Distinct plans for a run that converts: the plan itself first, then plans that differ from
@@ -51,10 +58,10 @@ public struct EnterPlanner: Sendable {
     /// How to hand the run to azooKey: everything before its last Japanese part is settled, and
     /// that part (consecutive Japanese segments, whatever their layout) goes to azooKey.
     /// Nil when the run does not end in Japanese, or is too short to convert.
-    public func handOff(for run: Run) -> HandOff? {
+    public func handOff(for run: Run, preferring language: Language? = nil) -> HandOff? {
         guard run.strokeCount >= Self.minimumStrokes else { return nil }
         let items = Self.items(of: run)
-        var segments = bestSegments(of: items)
+        var segments = segments(of: items, preferring: language)
         guard case .token = items.last, let last = segments.indices.last else { return nil }
         let tailCount = segments[last].reversed().prefix { $0.kind.isJapanese }.count
         guard tailCount > 0 else { return nil }
@@ -75,6 +82,40 @@ public struct EnterPlanner: Sendable {
             // One screen character per key, so the tail's length in keys is its segments' length
             typedTail: String(typed.suffix(tail.map(\.text.count).reduce(0, +)))
         )
+    }
+
+    /// Whether the rules cannot settle the run's language: one of its words is a known English
+    /// word as typed and also reads, whole, as romaji in QWERTY or Ebi ("are" or あれ, "has" or
+    /// Ebi かお). Partial readings do not count; almost every word has some.
+    public func isAmbiguous(_ run: Run) -> Bool {
+        guard run.strokeCount >= Self.minimumStrokes else { return false }
+        return Self.items(of: run).contains { item in
+            guard case let .token(token) = item else { return false }
+            return isAmbiguous(token)
+        }
+    }
+
+    private func isAmbiguous(_ token: Token) -> Bool {
+        segmenter.lexicon.contains(token.qwerty)
+            && (RomajiParser.isRomaji(token.qwerty) || RomajiParser.isRomaji(token.ebi))
+    }
+
+    /// The best segments, except that ambiguous words follow `language`: English keeps them as
+    /// typed; Japanese reads them whole as romaji, in QWERTY when the letters on screen already
+    /// are romaji, otherwise in Ebi.
+    private func segments(of items: [RunItem], preferring language: Language?) -> [[Segment]] {
+        guard let language else { return bestSegments(of: items) }
+        return zip(items, bestSegments(of: items)).map { item, best in
+            guard case let .token(token) = item, isAmbiguous(token) else { return best }
+            switch language {
+            case .english:
+                return [Segment(kind: .qwertyEnglish, text: token.qwerty)]
+            case .japanese:
+                return RomajiParser.isRomaji(token.qwerty)
+                    ? [Segment(kind: .qwertyJapanese, text: token.qwerty)]
+                    : [Segment(kind: .ebiJapanese, text: token.ebi)]
+            }
+        }
     }
 
     /// The best segments for each item (separators get an empty list).
