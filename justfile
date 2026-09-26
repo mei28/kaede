@@ -50,7 +50,7 @@ set-key name:
     @test "{{name}}" = jev -o "{{name}}" = anthropic || (echo "name は jev か anthropic" && exit 1)
     security add-generic-password -U -a kaede -s com.mei28.kaede.{{name}} -w
 
-# 変換方式を Evaluation/corpus.tsv の例文で比べる（方式: rules, zenzai, claude）
+# 変換方式を Evaluation/corpus.tsv の例文で比べる（方式: rules, zenzai, claude, jev）
 eval method: zenzai-model
     swift run -c release KaedeEval {{method}}
 

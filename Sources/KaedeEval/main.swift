@@ -11,7 +11,7 @@ func fail(_ message: String) -> Never {
     exit(1)
 }
 
-let methods = ["rules", "zenzai", "claude"]
+let methods = ["rules", "zenzai", "claude", "jev"]
 let arguments = CommandLine.arguments.dropFirst()
 guard arguments.count == 1, let method = arguments.first, methods.contains(method) else {
     fail("usage: kaede-eval <\(methods.joined(separator: "|"))>")
@@ -52,6 +52,13 @@ case "claude":
             effort: ProcessInfo.processInfo.environment["KAEDE_CLAUDE_EFFORT"] ?? "low"
         ),
         proposal: RulesLineConverter(planner: EnterPlanner(lexicon: lexicon), converter: azooKey(zenzai: true)),
+        transport: URLSessionTransport()
+    )
+case "jev":
+    JevLineConverter(
+        request: JevRequest(apiKey: Keychain.apiKey(named: "jev")),
+        planner: EnterPlanner(lexicon: lexicon),
+        converter: azooKey(zenzai: true),
         transport: URLSessionTransport()
     )
 default: fail("unknown method \(method)")
