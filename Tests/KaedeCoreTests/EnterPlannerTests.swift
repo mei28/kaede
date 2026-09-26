@@ -18,8 +18,9 @@ import Testing
         #expect(planner.plan(Run(typing: "kf")) == .pass)
     }
 
-    @Test func passesWhenAnyChunkIsNotRomaji() {
-        #expect(planner.plan(Run(typing: "jajsd/a qqq")) == .pass)
+    @Test func keepsAnUnknownWordAsTyped() {
+        // Neither romaji nor a known word: leaving it as typed is the safe reading
+        #expect(planner.plan(Run(typing: "jajsd/a qqq")) == .convert([.romaji("tatoeba"), .verbatim(" qqq")]))
     }
 
     @Test func splitsChunksOnSpacesAndKeepsTheSpacesAsTyped() {
@@ -36,8 +37,8 @@ import Testing
         #expect(planner.plan(Run(typing: "the cat")) == .pass)
     }
 
-    @Test func passesWhenADigitSitsInsideAChunk() {
-        #expect(planner.plan(Run(typing: "jajsd/a2")) == .pass)
+    @Test func keepsADigitAfterJapaneseAsTyped() {
+        #expect(planner.plan(Run(typing: "jajsd/a2")) == .convert([.romaji("tatoeba"), .verbatim("2")]))
     }
 
     @Test func keepsAnEnglishWordNextToJapanese() {
@@ -88,5 +89,23 @@ import Testing
     @Test func keepsALoneNAsHatsuonWhenTheNextSegmentStartsWithN() {
         // QWERTY "hon" + Ebi "nihon": joined as "honnihon" the IME would read ほんいほん
         #expect(planner.plan(Run(typing: "honkf;sk")) == .convert([.romaji("honnnihon")]))
+    }
+
+    @Test func literalsSeparateTokensAndStayAsTyped() {
+        let planner = EnterPlanner(lexicon: EnglishLexicon(wordList: "ebi\nsand\nlayout\n"))
+        #expect(planner.plan(Run(typing: "jajsd/a Ebi-sand layout")) == .convert([
+            .romaji("tatoeba"), .verbatim(" Ebi-sand layout"),
+        ]))
+    }
+
+    @Test func keepsPunctuationAfterAnEnglishWordAsTyped() {
+        let planner = EnterPlanner(lexicon: EnglishLexicon(wordList: "the\ncat\nis\nhere\nyes\n"))
+        #expect(planner.plan(Run(typing: "yes, the cat is here.")) == .pass)
+    }
+
+    @Test(arguments: ["has", "are", "the cat is here", "it has a name"])
+    func passesOrdinaryEnglishWithTheRealWordLists(typed: String) throws {
+        let lexicon = try EnglishLexicon(contentsOfFiles: ["/usr/share/dict/words"] + bundledWordLists)
+        #expect(EnterPlanner(lexicon: lexicon).plan(Run(typing: typed)) == .pass)
     }
 }

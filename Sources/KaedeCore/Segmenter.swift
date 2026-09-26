@@ -29,6 +29,8 @@ struct Segmenter: Sendable {
     /// stay English even though their Ebi reading ("age") is romaji.
     static let japaneseStroke = 1.0
     static let knownEnglishStroke = 0.5
+    /// Unknown QWERTY words are allowed, as typed, but cost more than any Japanese reading.
+    static let unknownEnglishStroke = 2.0
     /// Charged each time the kind changes inside a token, so a split needs a reason.
     static let switchCost = 4.0
 
@@ -101,8 +103,15 @@ struct Segmenter: Sendable {
         var end = start
         while end < reading.count, reading[end].isLetter {
             end += 1
-            if lexicon.contains(String(reading[start..<end])) {
-                steps.append(Step(end: end, cost: Double(end - start) * Self.knownEnglishStroke))
+            let perStroke = lexicon.contains(String(reading[start..<end]))
+                ? Self.knownEnglishStroke
+                : Self.unknownEnglishStroke
+            steps.append(Step(end: end, cost: Double(end - start) * perStroke))
+            // "," and "." after a word are English punctuation, not 、 and 。
+            var punctuated = end
+            while punctuated < reading.count, ",.".contains(reading[punctuated]) {
+                punctuated += 1
+                steps.append(Step(end: punctuated, cost: Double(punctuated - start) * perStroke))
             }
         }
         return steps

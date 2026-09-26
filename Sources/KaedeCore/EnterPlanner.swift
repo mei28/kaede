@@ -50,21 +50,22 @@ public struct EnterPlanner: Sendable {
         return hasJapanese ? .convert(pieces) : .pass
     }
 
-    /// Splits the run into tokens and the spaces between them, in order.
+    /// Splits the run into tokens of layout keys and the literals between them, in order.
+    /// Literals (space, digits, "-") are kept as typed: no layout or romaji reading applies to them.
     static func items(of run: Run) -> [RunItem] {
         let qwerty = Array(run.reading(in: .qwerty))
         let ebi = Array(run.reading(in: .ebi))
+        let isStroke = run.elements.map { if case .stroke = $0 { true } else { false } }
         var items: [RunItem] = []
         var start = 0
         while start < qwerty.count {
-            let isSpace = qwerty[start] == " "
             var end = start
-            while end < qwerty.count, (qwerty[end] == " ") == isSpace {
+            while end < qwerty.count, isStroke[end] == isStroke[start] {
                 end += 1
             }
-            items.append(isSpace
-                ? .separator(String(qwerty[start..<end]))
-                : .token(Token(qwerty: String(qwerty[start..<end]), ebi: String(ebi[start..<end]))))
+            items.append(isStroke[start]
+                ? .token(Token(qwerty: String(qwerty[start..<end]), ebi: String(ebi[start..<end])))
+                : .separator(String(qwerty[start..<end])))
             start = end
         }
         return items
