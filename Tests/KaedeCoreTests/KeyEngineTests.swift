@@ -270,7 +270,7 @@ import Testing
 
     @Test func spaceAfterAnAmbiguousWordAsksItsLanguage() {
         wordsEngine.type("are")
-        #expect(wordsEngine.handle(space) == .askLanguage(LanguageQuestion(typed: "are", ebiReading: "a.,", textBefore: "")))
+        #expect(wordsEngine.handle(space) == .askLanguage(LanguageQuestion(typed: "are", ebiReading: "a.,", textBefore: "", ruleReading: "are (English)")))
     }
 
     @Test(arguments: [
@@ -298,12 +298,12 @@ import Testing
         wordsEngine.type("the")
         _ = wordsEngine.handle(space)
         wordsEngine.type("are")
-        #expect(wordsEngine.handle(space) == .askLanguage(LanguageQuestion(typed: "are", ebiReading: "a.,", textBefore: "the ")))
+        #expect(wordsEngine.handle(space) == .askLanguage(LanguageQuestion(typed: "are", ebiReading: "a.,", textBefore: "the ", ruleReading: "are (English)")))
         _ = wordsEngine.answerLanguage(.english)
         _ = wordsEngine.finishRewrite()
         wordsEngine.discardRun()
         wordsEngine.type("are")
-        #expect(wordsEngine.handle(space) == .askLanguage(LanguageQuestion(typed: "are", ebiReading: "a.,", textBefore: "")))
+        #expect(wordsEngine.handle(space) == .askLanguage(LanguageQuestion(typed: "are", ebiReading: "a.,", textBefore: "", ruleReading: "are (English)")))
     }
 
     // MARK: Undoing a respacing
@@ -329,5 +329,37 @@ import Testing
         _ = engine.handle(space)
         _ = engine.finishReplacement(candidates: ["thank you"])
         #expect(engine.handle(space) == .pass)
+    }
+
+    // MARK: Asking Jev about respacing and doubtful languages
+
+    func askingEngine() throws -> KeyEngine {
+        KeyEngine(planner: EnterPlanner(
+            lexicon: try EnglishLexicon(contentsOfFiles: ["/usr/share/dict/words"] + bundledWordLists),
+            commonWords: try EnglishLexicon(contentsOfFiles: bundledWordLists)
+        ), asksLanguage: true)
+    }
+
+    @Test func spaceAfterEnglishTypedWithoutSpacesAsksWhetherToRespace() throws {
+        let engine = try askingEngine()
+        engine.type("localhost")
+        #expect(engine.handle(space) == .askSpacing(SpacingQuestion(typed: "localhost", respaced: "local host", textBefore: "")))
+        #expect(engine.answerSpacing(.keepAsTyped) == .rewrite(deleteCount: 0, text: " "))
+    }
+
+    @Test func respacingFollowsTheAnswer() throws {
+        let engine = try askingEngine()
+        engine.type("localhost")
+        _ = engine.handle(space)
+        #expect(engine.answerSpacing(.respace) == .replace(Replacement(typed: "localhost", pieces: [.verbatim("local host")], suffix: " ")))
+    }
+
+    @Test func romajiTypedInQwertyIsAskedAboutWithTheRulesReading() throws {
+        let engine = try askingEngine()
+        engine.type("watashino")
+        #expect(engine.handle(space) == .askLanguage(LanguageQuestion(
+            typed: "watashino", ebiReading: "la;aokrgy", textBefore: "", ruleReading: "watashino (Japanese romaji)"
+        )))
+        #expect(engine.answerLanguage(.english) == .rewrite(deleteCount: 0, text: " "))
     }
 }

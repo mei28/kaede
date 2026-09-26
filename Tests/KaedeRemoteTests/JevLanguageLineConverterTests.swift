@@ -14,7 +14,7 @@ struct UppercaseConverter: KanaKanjiConverting {
 
     func converter(answering choice: String) -> (JevLanguageLineConverter<UppercaseConverter>, CannedTransport) {
         let transport = CannedTransport(data: Data(#"{"answers":{"language":{"type":"choice","choice":"\#(choice)","confidence":0.9}}}"#.utf8))
-        return (JevLanguageLineConverter(request: JevLanguageRequest(apiKey: "k"), planner: planner, converter: UppercaseConverter(), transport: transport), transport)
+        return (JevLanguageLineConverter(jev: Jev(apiKey: "k"), planner: planner, converter: UppercaseConverter(), transport: transport), transport)
     }
 
     @Test func asksOnlyAboutAmbiguousWordsAndFollowsTheAnswer() async throws {

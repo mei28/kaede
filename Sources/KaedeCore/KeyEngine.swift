@@ -54,6 +54,9 @@ public enum KeyResponse: Equatable, Sendable {
     /// Suppress the event and ask whether the word is Japanese or English; pass the answer
     /// to `answerLanguage(_:)`.
     case askLanguage(LanguageQuestion)
+    /// Suppress the event and ask whether to respace English typed without spaces; pass the
+    /// answer to `answerSpacing(_:)`.
+    case askSpacing(SpacingQuestion)
 }
 
 /// Tracks the run and decides, per event, what the tap does. Runs on the tap's thread only.
@@ -108,7 +111,26 @@ public final class KeyEngine {
         case .english:
             response = settle(word, preferring: .english)
         case .undecided:
-            response = settle(word, preferring: nil)
+            response = settle(word)
+        }
+        return response == .pass ? .rewrite(deleteCount: 0, text: " ") : response
+    }
+
+    /// Settles the word that `.askSpacing` asked about, as `answerLanguage(_:)` does.
+    public func answerSpacing(_ answer: SpacingAnswer) -> KeyResponse {
+        guard let word = pendingQuestion else {
+            preconditionFailure("answerSpacing called with no question pending")
+        }
+        pendingQuestion = nil
+        let response: KeyResponse
+        switch answer {
+        case .failed:
+            remember(word.screenText)
+            response = .pass
+        case .respace, .undecided:
+            response = settle(word, spacing: .respace)
+        case .keepAsTyped:
+            response = settle(word, spacing: .keepAsTyped)
         }
         return response == .pass ? .rewrite(deleteCount: 0, text: " ") : response
     }
@@ -222,26 +244,32 @@ public final class KeyEngine {
     private func endWord() -> KeyResponse {
         let word = run
         run = Run()
-        if asksLanguage, planner.isAmbiguous(word) {
+        if asksLanguage, let question = planner.question(for: word) {
             heldKeys = []
             pendingQuestion = word
-            return .askLanguage(LanguageQuestion(
-                typed: word.screenText, ebiReading: word.reading(in: .ebi), textBefore: recentText
-            ))
+            switch question {
+            case let .spacing(respaced):
+                return .askSpacing(SpacingQuestion(typed: word.screenText, respaced: respaced, textBefore: recentText))
+            case let .language(ruleReading):
+                return .askLanguage(LanguageQuestion(
+                    typed: word.screenText, ebiReading: word.reading(in: .ebi),
+                    textBefore: recentText, ruleReading: ruleReading
+                ))
+            }
         }
-        return settle(word, preferring: nil)
+        return settle(word)
     }
 
     /// Hands the word to azooKey, replaces it, or lets it pass, in `language` for its
     /// ambiguous parts. Keeps keys already held while a question was pending.
-    private func settle(_ word: Run, preferring language: Language?) -> KeyResponse {
-        switch planner.plan(word, preferring: language) {
+    private func settle(_ word: Run, preferring language: Language? = nil, spacing: Spacing? = nil) -> KeyResponse {
+        switch planner.plan(word, preferring: language, spacing: spacing) {
         case .pass:
             remember(word.screenText)
             return .pass
         case let .convert(pieces):
             if heldKeys == nil { heldKeys = [] }
-            if let handOff = planner.handOff(for: word, preferring: language) {
+            if let handOff = planner.handOff(for: word, preferring: language, spacing: spacing) {
                 remember(Self.reading(of: handOff.settled) + handOff.romaji)
                 return .handOff(handOff)
             }

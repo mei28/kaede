@@ -9,8 +9,8 @@ final class EventTap {
     /// The engine's planner, reused to find other splits when building candidates.
     private let planner: EnterPlanner
     private let converter: any KanaKanjiConverting
-    /// Asks Jev about ambiguous words; nil when no Jev key is stored.
-    private let jev: JevLanguageRequest?
+    /// Asks Jev about doubtful words; nil when no Jev key is stored.
+    private let jev: Jev?
     private let transport = URLSessionTransport()
     private let poster = EventPoster()
     private var machPort: CFMachPort?
@@ -22,7 +22,7 @@ final class EventTap {
     /// No answer from Jev by then leaves the word as typed (spec, chapter 4).
     nonisolated private static let languageTimeout: Duration = .seconds(2)
 
-    init(planner: EnterPlanner, converter: any KanaKanjiConverting, jev: JevLanguageRequest?) {
+    init(planner: EnterPlanner, converter: any KanaKanjiConverting, jev: Jev?) {
         self.engine = KeyEngine(planner: planner, asksLanguage: jev != nil)
         self.planner = planner
         self.converter = converter
@@ -112,8 +112,12 @@ final class EventTap {
             DispatchQueue.main.async { self.rewrite(deleteCount: deleteCount, text: text) }
             return false
         case let .askLanguage(question):
-            log.info("Asks Jev the language of an ambiguous word.")
-            Task { await self.ask(question) }
+            log.info("Asks Jev the language of a doubtful word.")
+            Task { await self.askLanguage(question) }
+            return false
+        case let .askSpacing(question):
+            log.info("Asks Jev whether to respace a word.")
+            Task { await self.askSpacing(question) }
             return false
         }
     }
@@ -198,43 +202,67 @@ final class EventTap {
         }
     }
 
-    /// Asks Jev, then carries out what the engine decides from the answer.
-    private func ask(_ question: LanguageQuestion) async {
+    /// Asks Jev the language of a word, then carries out what the engine decides.
+    private func askLanguage(_ question: LanguageQuestion) async {
+        let request = setUpJev.language.urlRequest(question: question, application: Self.frontmostApplication)
+        let answer = await timedAnswer(to: request, kind: "language", failed: LanguageAnswer.failed) { data, status in
+            try JevLanguageResponse.answer(from: data, status: status)
+        }
+        carryOut(engine.answerLanguage(answer), failed: answer == .failed)
+    }
+
+    /// Asks Jev whether to respace a word, then carries out what the engine decides.
+    private func askSpacing(_ question: SpacingQuestion) async {
+        let request = setUpJev.spacing.urlRequest(question: question, application: Self.frontmostApplication)
+        let answer = await timedAnswer(to: request, kind: "spacing", failed: SpacingAnswer.failed) { data, status in
+            try JevSpacingResponse.answer(from: data, status: status)
+        }
+        carryOut(engine.answerSpacing(answer), failed: answer == .failed)
+    }
+
+    private var setUpJev: Jev {
         guard let jev else {
             preconditionFailure("the engine asks only when Jev is set up")
         }
-        let application = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "unknown"
-        let request = jev.urlRequest(question: question, application: application)
-        let clock = ContinuousClock()
-        let started = clock.now
-        let answer = await languageAnswer(for: request)
-        log.info("Jev answered \(String(describing: answer), privacy: .public) in \(clock.now - started, privacy: .public).")
-        if answer == .failed {
+        return jev
+    }
+
+    private static var frontmostApplication: String {
+        NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "unknown"
+    }
+
+    private func carryOut(_ response: KeyResponse, failed: Bool) {
+        if failed {
             NSSound.beep()
         }
-        switch engine.answerLanguage(answer) {
+        switch response {
         case let .replace(replacement):
             replace(replacement)
         case let .handOff(handOff):
-            await self.handOff(handOff)
+            Task { await self.handOff(handOff) }
         case let .rewrite(deleteCount, text):
             rewrite(deleteCount: deleteCount, text: text)
-        case .pass, .suppress, .askLanguage:
-            preconditionFailure("answerLanguage settles the word with an action")
+        case .pass, .suppress, .askLanguage, .askSpacing:
+            preconditionFailure("an answer settles the word with an action")
         }
     }
 
-    /// Jev's answer, or `.failed` on an error or after `languageTimeout`.
-    private func languageAnswer(for request: URLRequest) async -> LanguageAnswer {
+    /// Jev's answer read by `read`, or `failed` on an error or after `languageTimeout`.
+    private func timedAnswer<Answer: Sendable & Equatable>(
+        to request: URLRequest, kind: String, failed: Answer,
+        read: @escaping @Sendable (Data, Int) throws -> Answer
+    ) async -> Answer {
         let transport = self.transport
-        return await withTaskGroup(of: LanguageAnswer.self) { group in
+        let clock = ContinuousClock()
+        let started = clock.now
+        let answer = await withTaskGroup(of: Answer.self) { group in
             group.addTask {
                 do {
                     let (data, status) = try await transport.send(request)
-                    return try JevLanguageResponse.answer(from: data, status: status)
+                    return try read(data, status)
                 } catch {
-                    log.error("Asking Jev failed: \(error)")
-                    return .failed
+                    log.error("Asking Jev (\(kind, privacy: .public)) failed: \(error)")
+                    return failed
                 }
             }
             group.addTask {
@@ -244,7 +272,7 @@ final class EventTap {
                 } catch {
                     // Cancelled because Jev answered first; that answer is the one used
                 }
-                return .failed
+                return failed
             }
             guard let first = await group.next() else {
                 preconditionFailure("the group has two tasks")
@@ -252,6 +280,8 @@ final class EventTap {
             group.cancelAll()
             return first
         }
+        log.info("Jev answered the \(kind, privacy: .public) question with \(String(describing: answer), privacy: .public) in \(clock.now - started, privacy: .public).")
+        return answer
     }
 
     private func rewrite(deleteCount: Int, text: String) {

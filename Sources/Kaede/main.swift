@@ -21,9 +21,9 @@ do {
 }
 
 // Jev settles ambiguous words when its key is stored; without it the rules do
-let jev: JevLanguageRequest?
+let jev: Jev?
 do {
-    jev = try Keychain.apiKey(named: "jev").map(JevLanguageRequest.init(apiKey:))
+    jev = try Keychain.apiKey(named: "jev").map(Jev.init(apiKey:))
 } catch {
     terminate("Could not read the Jev API key: \(error)")
 }

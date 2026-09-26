@@ -5,7 +5,7 @@ import Testing
 
 @Suite struct JevLanguageTests {
     let request = JevLanguageRequest(apiKey: "test-key").urlRequest(
-        question: LanguageQuestion(typed: "are", ebiReading: "a.,", textBefore: "kore ha"),
+        question: LanguageQuestion(typed: "are", ebiReading: "a.,", textBefore: "kore ha", ruleReading: "are (English)"),
         application: "com.github.wez.wezterm"
     )
 
@@ -26,6 +26,7 @@ import Testing
             "ebi_reading": "a.,",
             "text_before_caret": "kore ha",
             "application": "com.github.wez.wezterm",
+            "rule_reading": "are (English)",
         ])
     }
 

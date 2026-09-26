@@ -29,3 +29,14 @@ public enum JevResponse {
         }
     }
 }
+
+/// The questions Kaede asks Jev, sharing one API key.
+public struct Jev: Sendable {
+    public let language: JevLanguageRequest
+    public let spacing: JevSpacingRequest
+
+    public init(apiKey: String) {
+        language = JevLanguageRequest(apiKey: apiKey)
+        spacing = JevSpacingRequest(apiKey: apiKey)
+    }
+}

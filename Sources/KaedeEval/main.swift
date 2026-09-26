@@ -70,7 +70,7 @@ case "claude":
 case "jev":
     // Jev settles the language of ambiguous words; the rest goes by the rules, with Zenzai
     JevLanguageLineConverter(
-        request: JevLanguageRequest(apiKey: apiKey(named: "jev")),
+        jev: Jev(apiKey: apiKey(named: "jev")),
         planner: EnterPlanner(lexicon: lexicon, commonWords: commonWords),
         converter: azooKey(zenzai: true),
         transport: URLSessionTransport()
