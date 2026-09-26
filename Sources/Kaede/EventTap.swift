@@ -22,8 +22,11 @@ final class EventTap {
     /// No answer from Jev by then leaves the word as typed (spec, chapter 4).
     nonisolated private static let languageTimeout: Duration = .seconds(2)
 
-    init(planner: EnterPlanner, converter: any KanaKanjiConverting, jev: Jev?) {
+    init(planner: EnterPlanner, converter: any KanaKanjiConverting, jev: Jev?, wordLog: WordLog?) {
         self.engine = KeyEngine(planner: planner, asksLanguage: jev != nil)
+        if let wordLog {
+            engine.recordWord = { wordLog.append($0) }
+        }
         self.planner = planner
         self.converter = converter
         self.jev = jev

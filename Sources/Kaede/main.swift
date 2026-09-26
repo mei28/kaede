@@ -29,13 +29,18 @@ do {
 }
 log.notice("Jev is \(jev == nil ? "off (no key stored)" : "on", privacy: .public).")
 
+// The record of typed words is opt-in (`just words-log on`): it holds what the user typed
+let wordLog = UserDefaults.standard.bool(forKey: WordLog.defaultsKey) ? WordLog() : nil
+log.notice("The word record is \(wordLog == nil ? "off" : "on", privacy: .public).")
+
 let tap = EventTap(
     planner: EnterPlanner(lexicon: lexicon, commonWords: commonWords),
     converter: AzooKeyConverter(
         dictionaryDirectory: dictionaryDirectory,
         memoryDirectory: FileManager.default.temporaryDirectory
     ),
-    jev: jev
+    jev: jev,
+    wordLog: wordLog
 )
 tap.start()
 

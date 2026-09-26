@@ -54,6 +54,22 @@ set-key name:
 eval method: zenzai-model
     swift run -c release KaedeEval {{method}}
 
+# 作り直さずに Kaede を起動し直す（許可は外れない）
+restart:
+    pkill -x Kaede || true
+    sleep 1
+    open dist/Kaede.app
+
+# 打った語の記録を切り替える（state: on か off。記録は ~/Library/Logs/Kaede/words.jsonl、この Mac の中だけ）
+words-log state:
+    @test "{{state}}" = on -o "{{state}}" = off || (echo "state は on か off" && exit 1)
+    defaults write com.mei28.kaede logWords -bool {{ if state == "on" { "true" } else { "false" } }}
+    @echo "Kaede を起動し直すと反映されます（just restart）"
+
+# 打った語の記録の最近 30 件を見る
+words:
+    tail -n 30 ~/Library/Logs/Kaede/words.jsonl
+
 # 起動中の Kaede を止める（メニューも Dock アイコンもないため）
 stop:
     pkill -x Kaede || echo "Kaede は起動していません"
