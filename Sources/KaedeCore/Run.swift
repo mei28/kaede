@@ -12,6 +12,19 @@ public struct Run: Sendable {
 
     public init() {}
 
+    /// Builds the run that leaves `qwertyText` on screen: layout keys become strokes (uppercase
+    /// letters with Shift), anything else a literal. Used to replay typed text outside the tap.
+    public init(typing qwertyText: String) {
+        for character in qwertyText {
+            let lowered = Character(character.lowercased())
+            if let position = KeyPosition.allCases.first(where: { $0.qwertyCharacter == lowered }) {
+                append(.stroke(position, shift: character != lowered))
+            } else {
+                append(.literal(character))
+            }
+        }
+    }
+
     public mutating func append(_ element: RunElement) {
         elements.append(element)
     }
