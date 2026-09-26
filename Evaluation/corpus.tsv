@@ -12,3 +12,7 @@ has	顔
 kite	来て
 kinouno are	昨日の あれ
 ashita kite	明日 来て
+# スペースなしで打った英語。localhost は打ったまま残すのが意図で、今の規則では区切ってしまう（限界の記録）。
+allyouneedisattention.	all you need is attention.
+thankyou	thank you
+localhost	localhost

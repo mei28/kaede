@@ -20,11 +20,12 @@ guard arguments.count == 1, let method = arguments.first, methods.contains(metho
 let root = URL(filePath: FileManager.default.currentDirectoryPath)
 let corpus: [CorpusEntry]
 let lexicon: EnglishLexicon
+let commonWords: EnglishLexicon
 do {
     corpus = try Corpus.parse(String(contentsOf: root.appending(path: "Evaluation/corpus.tsv"), encoding: .utf8))
-    lexicon = try EnglishLexicon(contentsOfFiles: ["/usr/share/dict/words"] + ["en10k.txt", "extra-words.txt"].map {
-        root.appending(path: "Resources/\($0)").path(percentEncoded: false)
-    })
+    let bundledLists = ["en10k.txt", "extra-words.txt"].map { root.appending(path: "Resources/\($0)").path(percentEncoded: false) }
+    lexicon = try EnglishLexicon(contentsOfFiles: ["/usr/share/dict/words"] + bundledLists)
+    commonWords = try EnglishLexicon(contentsOfFiles: bundledLists)
 } catch {
     fail("could not read the corpus or word lists: \(error)")
 }
@@ -53,8 +54,8 @@ func apiKey(named name: String) -> String {
 }
 
 let converter: any LineConverting = switch method {
-case "rules": RulesLineConverter(planner: EnterPlanner(lexicon: lexicon), converter: azooKey(zenzai: false))
-case "zenzai": RulesLineConverter(planner: EnterPlanner(lexicon: lexicon), converter: azooKey(zenzai: true))
+case "rules": RulesLineConverter(planner: EnterPlanner(lexicon: lexicon, commonWords: commonWords), converter: azooKey(zenzai: false))
+case "zenzai": RulesLineConverter(planner: EnterPlanner(lexicon: lexicon, commonWords: commonWords), converter: azooKey(zenzai: true))
 case "claude":
     // KAEDE_CLAUDE_MODEL and KAEDE_CLAUDE_EFFORT override the defaults for comparing settings
     ClaudeLineConverter(
@@ -63,14 +64,14 @@ case "claude":
             model: ProcessInfo.processInfo.environment["KAEDE_CLAUDE_MODEL"] ?? "claude-opus-5",
             effort: ProcessInfo.processInfo.environment["KAEDE_CLAUDE_EFFORT"] ?? "low"
         ),
-        proposal: RulesLineConverter(planner: EnterPlanner(lexicon: lexicon), converter: azooKey(zenzai: true)),
+        proposal: RulesLineConverter(planner: EnterPlanner(lexicon: lexicon, commonWords: commonWords), converter: azooKey(zenzai: true)),
         transport: URLSessionTransport()
     )
 case "jev":
     // Jev settles the language of ambiguous words; the rest goes by the rules, with Zenzai
     JevLanguageLineConverter(
         request: JevLanguageRequest(apiKey: apiKey(named: "jev")),
-        planner: EnterPlanner(lexicon: lexicon),
+        planner: EnterPlanner(lexicon: lexicon, commonWords: commonWords),
         converter: azooKey(zenzai: true),
         transport: URLSessionTransport()
     )

@@ -149,6 +149,10 @@ final class EventTap {
     }
 
     private func timedCandidates(for replacement: Replacement) throws -> [String] {
+        // English that was only respaced has one reading; Escape can still undo it
+        if !replacement.pieces.contains(where: { if case .romaji = $0 { true } else { false } }) {
+            return [try replacement.text(using: converter)]
+        }
         let clock = ContinuousClock()
         let started = clock.now
         let alternatives = planner.alternatives(for: Run(typing: replacement.typed), perToken: Self.splitsPerToken)
