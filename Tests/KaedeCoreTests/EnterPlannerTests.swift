@@ -185,4 +185,34 @@ import Testing
             typed: typed, settled: [], romaji: romaji, typedTail: typed
         ))
     }
+
+    // MARK: English typed without spaces
+
+    func respacingPlanner() throws -> EnterPlanner {
+        EnterPlanner(
+            lexicon: try EnglishLexicon(contentsOfFiles: ["/usr/share/dict/words"] + bundledWordLists),
+            commonWords: try EnglishLexicon(contentsOfFiles: bundledWordLists)
+        )
+    }
+
+    @Test(arguments: [
+        ("allyouneedisattention.", "all you need is attention."),
+        ("thankyou", "thank you"),
+        ("ThankYou", "Thank You"),
+    ])
+    func putsSpacesIntoEnglishTypedWithoutThem(typed: String, respaced: String) throws {
+        let plan = try respacingPlanner().plan(Run(typing: typed))
+        #expect(plan == .convert([.verbatim(respaced)]))
+    }
+
+    @Test func leavesKnownWordsAndRomajiAlone() throws {
+        let planner = try respacingPlanner()
+        #expect(planner.plan(Run(typing: "keyboard")) == .pass)
+        #expect(planner.plan(Run(typing: "tomodachi")) == .convert([.romaji("tomodachi")]))
+    }
+
+    @Test func respacesOnlyWithCommonWordsGiven() throws {
+        let planner = EnterPlanner(lexicon: try EnglishLexicon(contentsOfFiles: ["/usr/share/dict/words"] + bundledWordLists))
+        #expect(planner.plan(Run(typing: "thankyou")) != .convert([.verbatim("thank you")]))
+    }
 }

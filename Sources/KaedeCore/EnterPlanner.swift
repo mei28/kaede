@@ -26,9 +26,13 @@ public struct EnterPlanner: Sendable {
     static let minimumStrokes = 3
 
     let segmenter: Segmenter
+    /// Respaces English typed without spaces; nil leaves such words as typed.
+    let splitter: EnglishSplitter?
 
-    public init(lexicon: EnglishLexicon) {
+    /// - Parameter commonWords: common English words for respacing English typed without spaces.
+    public init(lexicon: EnglishLexicon, commonWords: EnglishLexicon? = nil) {
         segmenter = Segmenter(lexicon: lexicon)
+        splitter = commonWords.map(EnglishSplitter.init(commonWords:))
     }
 
     /// With a preference, ambiguous words (see `isAmbiguous`) are read in that language.
@@ -145,9 +149,29 @@ public struct EnterPlanner: Sendable {
         return choices
     }
 
-    /// A token nothing can read stays as typed.
+    /// English typed without spaces is respaced; otherwise the segmenter's reading, and a token
+    /// nothing can read stays as typed.
     private func segmentsOrAsTyped(_ token: Token) -> [Segment] {
-        segmenter.segments(of: token) ?? [Segment(kind: .qwertyEnglish, text: token.qwerty)]
+        if let respaced = respaced(token) {
+            return [Segment(kind: .qwertyEnglish, text: respaced)]
+        }
+        return segmenter.segments(of: token) ?? [Segment(kind: .qwertyEnglish, text: token.qwerty)]
+    }
+
+    /// The token with spaces between its words, when it is English typed without spaces: letters
+    /// (with "," or "." at the end) that are not a known word, do not read whole as plain romaji, and
+    /// split into two or more common words. Checked before segmenting, which would otherwise
+    /// piece it together from short English words and romaji.
+    private func respaced(_ token: Token) -> String? {
+        guard let splitter else { return nil }
+        let letters = String(token.qwerty.reversed().drop { ",.".contains($0) }.reversed())
+        let punctuation = token.qwerty.dropFirst(letters.count)
+        guard !letters.isEmpty, letters.allSatisfy(\.isLetter),
+              !segmenter.lexicon.contains(letters),
+              !RomajiParser.isPlainRomaji(token.qwerty), !RomajiParser.isPlainRomaji(token.ebi),
+              let words = splitter.split(letters)
+        else { return nil }
+        return words.joined(separator: " ") + punctuation
     }
 
     /// Assembles the pieces for the run, given the segments chosen for each of its tokens
