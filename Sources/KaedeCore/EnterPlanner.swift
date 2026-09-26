@@ -73,8 +73,14 @@ public struct EnterPlanner: Sendable {
     /// Assembles the pieces for the run, given the segments chosen for each of its tokens
     /// (separators get an empty list).
     private static func decision(items: [RunItem], segments: [[Segment]]) -> EnterDecision {
+        let (pieces, changesScreen) = assemble(items: items, segments: segments)
+        return changesScreen ? .convert(pieces) : .pass
+    }
+
+    /// The pieces for the items and their chosen segments, and whether any segment reads
+    /// differently from what the keys already put on screen.
+    private static func assemble(items: [RunItem], segments: [[Segment]]) -> (pieces: [ConversionPiece], changesScreen: Bool) {
         var pieces: [ConversionPiece] = []
-        // Whether any segment reads differently from what the keys already put on screen
         var changesScreen = false
         for (item, segments) in zip(items, segments) {
             if case let .separator(text) = item {
@@ -89,7 +95,7 @@ public struct EnterPlanner: Sendable {
                 }
             }
         }
-        return changesScreen ? .convert(pieces) : .pass
+        return (pieces, changesScreen)
     }
 
     /// Splits the run into tokens of layout keys and the literals between them, in order.
