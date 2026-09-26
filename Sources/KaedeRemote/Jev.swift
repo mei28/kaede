@@ -61,20 +61,25 @@ public enum JevResponse {
 
     /// The candidate Jev chose.
     public static func choice(from data: Data, status: Int, candidates: [String]) throws -> String {
+        try checkStatus(of: data, status: status)
+        let answer = try JSONDecoder().decode(Answers.self, from: data).answers.sentence.choice
+        guard let index = candidates.indices.first(where: { option($0) == answer }) else {
+            throw JevError.unknownChoice(answer)
+        }
+        return candidates[index]
+    }
+
+    /// Throws the error for a non-200 status.
+    static func checkStatus(of data: Data, status: Int) throws {
         let body = String(decoding: data, as: UTF8.self)
         switch status {
-        case 200: break
+        case 200: return
         case 401: throw JevError.unauthorized
         case 422: throw JevError.invalidRequest(body: body)
         case 429: throw JevError.rateLimited
         case 529: throw JevError.overloaded
         default: throw JevError.http(status: status, body: body)
         }
-        let answer = try JSONDecoder().decode(Answers.self, from: data).answers.sentence.choice
-        guard let index = candidates.indices.first(where: { option($0) == answer }) else {
-            throw JevError.unknownChoice(answer)
-        }
-        return candidates[index]
     }
 
     private struct Answers: Decodable {
