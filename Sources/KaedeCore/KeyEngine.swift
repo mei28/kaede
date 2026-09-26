@@ -177,13 +177,14 @@ public final class KeyEngine {
         return keys
     }
 
-    /// Space and Shift+Space step through the candidates, Escape restores what was typed.
+    /// Space and Shift+Space step through the candidates when there is more than one; Escape
+    /// restores what was typed.
     /// Returns nil for any other key.
     private func correct(_ correction: Correction, with key: RawKey) -> KeyResponse? {
         guard !key.command, !key.control, !key.option else { return nil }
         let onScreen = correction.shown + correction.suffix
         switch key.keyCode {
-        case KeyCode.space:
+        case KeyCode.space where correction.candidates.count > 1:
             var next = correction
             next.index = (correction.index + (key.shift ? -1 : 1) + correction.candidates.count) % correction.candidates.count
             self.correction = next
@@ -248,8 +249,8 @@ public final class KeyEngine {
             let replacement = Replacement(typed: word.screenText, pieces: pieces, suffix: " ")
             pendingReplacement = replacement
             // A Space conversion that could not go to azooKey (the word ends in English) is
-            // committed as is; only a conversion by Enter can be stepped through
-            pendingCorrectable = false
+            // committed as is; English that was only respaced can be undone with Escape
+            pendingCorrectable = !pieces.contains { if case .romaji = $0 { true } else { false } }
             return .replace(replacement)
         }
     }

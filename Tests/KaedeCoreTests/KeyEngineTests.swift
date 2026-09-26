@@ -305,4 +305,29 @@ import Testing
         wordsEngine.type("are")
         #expect(wordsEngine.handle(space) == .askLanguage(LanguageQuestion(typed: "are", ebiReading: "a.,", textBefore: "")))
     }
+
+    // MARK: Undoing a respacing
+
+    func respacingEngine() throws -> KeyEngine {
+        KeyEngine(planner: EnterPlanner(
+            lexicon: try EnglishLexicon(contentsOfFiles: ["/usr/share/dict/words"] + bundledWordLists),
+            commonWords: try EnglishLexicon(contentsOfFiles: bundledWordLists)
+        ))
+    }
+
+    @Test func escapeRightAfterARespacingRestoresWhatWasTyped() throws {
+        let engine = try respacingEngine()
+        engine.type("thankyou")
+        #expect(engine.handle(space) == .replace(Replacement(typed: "thankyou", pieces: [.verbatim("thank you")], suffix: " ")))
+        _ = engine.finishReplacement(candidates: ["thank you"])
+        #expect(engine.handle(RawKey(keyCode: 53, character: "\u{1B}")) == .rewrite(deleteCount: 10, text: "thankyou "))
+    }
+
+    @Test func withOneCandidateSpaceMovesOnAsUsual() throws {
+        let engine = try respacingEngine()
+        engine.type("thankyou")
+        _ = engine.handle(space)
+        _ = engine.finishReplacement(candidates: ["thank you"])
+        #expect(engine.handle(space) == .pass)
+    }
 }
