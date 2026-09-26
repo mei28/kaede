@@ -257,4 +257,19 @@ import Testing
         #expect(planner.plan(Run(typing: "localhost"), spacing: .respace) == .convert([.verbatim("local host")]))
         #expect(planner.plan(Run(typing: "localhost")) == .convert([.verbatim("local host")]))
     }
+
+    @Test func respacesLongEnglishWithAWordStillBeingTyped() throws {
+        #expect(try respacingPlanner().plan(Run(typing: "explanationisallyouneedbuttheexpl")) == .convert([
+            .verbatim("explanation is all you need but the expl"),
+        ]))
+    }
+
+    @Test func anEnglishAnswerRespacesWhatSplits() throws {
+        // "behere" reads as romaji, so the rules read it as Japanese; English means "be here"
+        let planner = try respacingPlanner()
+        #expect(planner.plan(Run(typing: "behere")) == .convert([.romaji("behere")]))
+        #expect(planner.plan(Run(typing: "behere"), preferring: .english) == .convert([.verbatim("be here")]))
+        // Romaji splits into junk ("to mod a chi"), so English keeps it as typed
+        #expect(planner.plan(Run(typing: "tomodachi"), preferring: .english) == .pass)
+    }
 }

@@ -155,7 +155,8 @@ public struct EnterPlanner: Sendable {
 
     /// The best segments, except where an answer settles a doubtful word:
     /// - `spacing` keeps English typed without spaces as typed, or respaces it (the rules' way);
-    /// - `language` English keeps a word with a language question as typed; Japanese reads a
+    /// - `language` English keeps a word with a language question as typed, respaced when it
+    ///   splits into words; Japanese reads a
     ///   whole-word ambiguity ("are") whole as romaji, in QWERTY when the letters already are
     ///   romaji, otherwise in Ebi, and keeps the rules' reading for the other doubtful words.
     private func segments(of items: [RunItem], preferring language: Language?, spacing: Spacing?) -> [[Segment]] {
@@ -170,7 +171,8 @@ public struct EnterPlanner: Sendable {
             }
             switch language {
             case .english:
-                return asTyped
+                // English that reads as romaji ("behere") may be words run together
+                return split(token, strict: true).map { [Segment(kind: .qwertyEnglish, text: $0)] } ?? asTyped
             case .japanese where isAmbiguous(token):
                 return RomajiParser.isRomaji(token.qwerty)
                     ? [Segment(kind: .qwertyJapanese, text: token.qwerty)]
@@ -222,14 +224,30 @@ public struct EnterPlanner: Sendable {
     /// split into two or more common words. Checked before segmenting, which would otherwise
     /// piece it together from short English words and romaji.
     private func respaced(_ token: Token) -> String? {
+        guard !RomajiParser.isPlainRomaji(token.qwerty), !RomajiParser.isPlainRomaji(token.ebi) else {
+            return nil
+        }
+        return split(token)
+    }
+
+    /// The token's letters (with "," or "." at the end) split into words with spaces between
+    /// them, whatever romaji they might also read as; nil when they are a known word or do not split.
+    /// `strict` takes only splits into common words with at most one word of two letters or
+    /// fewer: letters that read as romaji split into junk otherwise ("w at as hi no",
+    /// "to mod a chi"), while English run together splits cleanly ("be here", "see you").
+    private func split(_ token: Token, strict: Bool = false) -> String? {
         guard let splitter else { return nil }
         let letters = String(token.qwerty.reversed().drop { ",.".contains($0) }.reversed())
         let punctuation = token.qwerty.dropFirst(letters.count)
         guard !letters.isEmpty, letters.allSatisfy(\.isLetter),
               !segmenter.lexicon.contains(letters),
-              !RomajiParser.isPlainRomaji(token.qwerty), !RomajiParser.isPlainRomaji(token.ebi),
               let words = splitter.split(letters)
         else { return nil }
+        if strict {
+            guard words.allSatisfy(splitter.commonWords.contains), words.filter({ $0.count <= 2 }).count <= 1 else {
+                return nil
+            }
+        }
         return words.joined(separator: " ") + punctuation
     }
 
