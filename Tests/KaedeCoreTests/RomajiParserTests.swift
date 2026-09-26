@@ -52,4 +52,12 @@ import Testing
             #expect(RomajiParser.isRomaji(chunk), "\(chunk)")
         }
     }
+
+    @Test func plainRomajiLeavesOutSmallKanaSpellings() {
+        // "llyo" reads as っょ, which ordinary Japanese typing never produces
+        #expect(RomajiParser.isRomaji("allyouneedisattention"))
+        #expect(!RomajiParser.isPlainRomaji("allyouneedisattention"))
+        #expect(RomajiParser.isPlainRomaji("ashita"))
+        #expect(RomajiParser.isPlainRomaji("hai,iie."))
+    }
 }

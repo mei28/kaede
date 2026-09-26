@@ -1,12 +1,23 @@
 /// Decides whether a chunk reads as romaji from start to end.
 public enum RomajiParser {
     public static func isRomaji(_ chunk: String) -> Bool {
+        reads(chunk, plain: false)
+    }
+
+    /// Romaji without small kana (xa, lyo, ltu and the sokuon before them), which ordinary
+    /// Japanese typing never spells out. English typed without spaces often reads as romaji
+    /// only through them ("allyou..." as あっょう).
+    public static func isPlainRomaji(_ chunk: String) -> Bool {
+        reads(chunk, plain: true)
+    }
+
+    private static func reads(_ chunk: String, plain: Bool) -> Bool {
         let characters = Array(chunk)
         // reachable[i]: the first i characters split into syllables with nothing left over
         var reachable = Array(repeating: false, count: characters.count + 1)
         reachable[0] = true
         for start in characters.indices where reachable[start] {
-            for end in syllableEnds(in: characters, from: start) {
+            for end in syllableEnds(in: characters, from: start, plain: plain) {
                 reachable[end] = true
             }
         }
@@ -15,13 +26,15 @@ public enum RomajiParser {
 
     /// The positions where a syllable starting at `start` can end, shortest first.
     /// A sokuon (the first of a doubled consonant) counts as a syllable of its own.
-    static func syllableEnds(in characters: [Character], from start: Int) -> [Int] {
+    static func syllableEnds(in characters: [Character], from start: Int, plain: Bool = false) -> [Int] {
+        let smallKanaPrefixes: Set<Character> = ["x", "l"]
         var ends: [Int] = []
-        if isSokuon(characters, at: start) {
+        if isSokuon(characters, at: start), !(plain && smallKanaPrefixes.contains(characters[start])) {
             ends.append(start + 1)
         }
         for length in 1...maxSyllableLength where start + length <= characters.count {
-            if syllables.contains(String(characters[start..<start + length])) {
+            let syllable = String(characters[start..<start + length])
+            if syllables.contains(syllable), !(plain && smallKanaPrefixes.contains(characters[start])) {
                 ends.append(start + length)
             }
         }
