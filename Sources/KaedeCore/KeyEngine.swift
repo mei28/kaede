@@ -157,7 +157,7 @@ public final class KeyEngine {
         if KeyCode.enter.contains(key.keyCode) {
             // Enter converts and commits at once; the user can still step through candidates
             recentText = ""
-            return endRun(suffix: "", handsOffToAzooKey: false)
+            return endRunAtEnter()
         }
         if key.keyCode == KeyCode.space, !key.command, !key.control, !key.option {
             // Words never share a segment across a space, so the word before it can convert now.
@@ -318,30 +318,24 @@ public final class KeyEngine {
         }.joined()
     }
 
-    /// Plans the run and starts a new one. When the run converts, the key that ended it is
-    /// suppressed, and `suffix` is what it would have typed after the converted text.
-    private func endRun(suffix: String, handsOffToAzooKey: Bool) -> KeyResponse {
+    /// Plans the run at Enter and starts a new one. A conversion suppresses Enter, is committed
+    /// at once (never handed to azooKey) and can be stepped through afterwards.
+    private func endRunAtEnter() -> KeyResponse {
         let decision = planner.plan(run)
-        let typed = run.screenText
-        let runBeforeReset = run
+        let word = run
         run = Run()
         switch decision {
         case .pass:
-            if !typed.isEmpty {
-                record(runBeforeReset, asked: (nil, nil), outcome: "as typed")
+            if !word.screenText.isEmpty {
+                record(word, asked: (nil, nil), outcome: "as typed")
             }
             return .pass
         case let .convert(pieces):
             heldKeys = []
-            record(runBeforeReset, asked: (nil, nil), outcome: "replaced: \(Self.reading(of: pieces))")
-            if handsOffToAzooKey, let handOff = planner.handOff(for: runBeforeReset) {
-                return .handOff(handOff)
-            }
-            let replacement = Replacement(typed: typed, pieces: pieces, suffix: suffix)
+            record(word, asked: (nil, nil), outcome: "replaced: \(Self.reading(of: pieces))")
+            let replacement = Replacement(typed: word.screenText, pieces: pieces, suffix: "")
             pendingReplacement = replacement
-            // Only a conversion by Enter can be stepped through; a Space conversion that could not
-            // go to azooKey (the word ends in English) is committed as is
-            pendingCorrectable = !handsOffToAzooKey
+            pendingCorrectable = true
             return .replace(replacement)
         }
     }
