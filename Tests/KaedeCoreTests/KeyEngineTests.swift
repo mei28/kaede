@@ -79,7 +79,7 @@ import Testing
     @Test func enterThatConvertsIsSuppressedAndYieldsAReplacement() {
         engine.type("jajsd/ahskkkahakk.fmd")
         #expect(engine.handle(.enter) == .replace(Replacement(
-            deleteCount: 21,
+            typed: "jajsd/ahskkkahakk.fmd",
             pieces: [.romaji("tatoebakonnnakannjide")]
         )))
     }
@@ -91,7 +91,7 @@ import Testing
     ])
     func everyEnterConverts(enter: RawKey) {
         engine.type("jajsd/a")
-        #expect(engine.handle(enter) == .replace(Replacement(deleteCount: 7, pieces: [.romaji("tatoeba")])))
+        #expect(engine.handle(enter) == .replace(Replacement(typed: "jajsd/a", pieces: [.romaji("tatoeba")])))
     }
 
     @Test func holdsKeysDuringAReplacementAndReturnsThemInOrder() {
@@ -126,7 +126,7 @@ import Testing
     @Test func spaceAfterAConvertingWordReplacesItAndReplaysTheSpace() {
         engine.type("jajsd/a")
         let space = RawKey(keyCode: 49, character: " ")
-        #expect(engine.handle(space) == .replace(Replacement(deleteCount: 7, pieces: [.romaji("tatoeba")])))
+        #expect(engine.handle(space) == .replace(Replacement(typed: "jajsd/a", pieces: [.romaji("tatoeba")])))
         #expect(engine.finishReplacement() == [space])
     }
 
@@ -135,7 +135,7 @@ import Testing
         #expect(engine.handle(RawKey(keyCode: 49, character: " ")) == .pass)
         #expect(engine.run.elements.isEmpty)
         engine.type("jajsd/a")
-        #expect(engine.handle(.enter) == .replace(Replacement(deleteCount: 7, pieces: [.romaji("tatoeba")])))
+        #expect(engine.handle(.enter) == .replace(Replacement(typed: "jajsd/a", pieces: [.romaji("tatoeba")])))
     }
 
     @Test func spaceWithAModifierDiscardsTheRun() {

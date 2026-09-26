@@ -19,7 +19,7 @@ public struct RulesLineConverter<Converter: KanaKanjiConverting>: LineConverting
         case .pass:
             typed
         case let .convert(pieces):
-            try Replacement(deleteCount: typed.count, pieces: pieces).text(using: converter)
+            try Replacement(typed: typed, pieces: pieces).text(using: converter)
         }
     }
 }

@@ -115,14 +115,14 @@ public final class KeyEngine {
     /// suppressed and, if listed in `replaying`, typed again after the replacement.
     private func endRun(replaying keys: [RawKey]) -> KeyResponse {
         let decision = planner.plan(run)
-        let deleteCount = run.screenText.count
+        let typed = run.screenText
         run = Run()
         switch decision {
         case .pass:
             return .pass
         case let .convert(pieces):
             heldKeys = keys
-            return .replace(Replacement(deleteCount: deleteCount, pieces: pieces))
+            return .replace(Replacement(typed: typed, pieces: pieces))
         }
     }
 

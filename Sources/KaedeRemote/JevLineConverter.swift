@@ -25,7 +25,7 @@ public struct JevLineConverter<Converter: KanaKanjiConverting>: LineConverting {
         let run = Run(typing: typed)
         var candidates: [String] = []
         for pieces in planner.alternatives(for: run, perToken: Self.perToken) {
-            let sentence = try Replacement(deleteCount: typed.count, pieces: pieces).text(using: converter)
+            let sentence = try Replacement(typed: typed, pieces: pieces).text(using: converter)
             if !candidates.contains(sentence) {
                 candidates.append(sentence)
             }

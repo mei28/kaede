@@ -14,7 +14,7 @@ private struct Unconvertible: Error {}
 
 @Suite struct ReplacementTests {
     @Test func convertsRomajiPiecesAndKeepsVerbatimOnes() throws {
-        let replacement = Replacement(deleteCount: 0, pieces: [
+        let replacement = Replacement(typed: "", pieces: [
             .verbatim(" "), .romaji("tatoeba"), .verbatim("  "), .romaji("henkan"),
         ])
         let converter = DictionaryConverter(table: ["tatoeba": "例えば", "henkan": "変換"])
@@ -22,7 +22,7 @@ private struct Unconvertible: Error {}
     }
 
     @Test func failsWhenTheConverterThrows() {
-        let replacement = Replacement(deleteCount: 0, pieces: [.romaji("tatoeba"), .romaji("zzz")])
+        let replacement = Replacement(typed: "", pieces: [.romaji("tatoeba"), .romaji("zzz")])
         let converter = DictionaryConverter(table: ["tatoeba": "例えば"])
         #expect(throws: Unconvertible.self) {
             try replacement.text(using: converter)

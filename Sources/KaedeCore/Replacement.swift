@@ -1,12 +1,20 @@
-/// Replaces the run on screen: delete what it typed, then type the converted pieces.
+/// Replaces the run on screen: delete what it typed, then type the converted pieces and the suffix.
 public struct Replacement: Equatable, Sendable {
-    /// Backspaces to send, one per character of the run's screen text.
-    public var deleteCount: Int
+    /// The run's text on screen, which the replacement deletes.
+    public var typed: String
     public var pieces: [ConversionPiece]
+    /// Typed after the converted text.
+    public var suffix: String
 
-    public init(deleteCount: Int, pieces: [ConversionPiece]) {
-        self.deleteCount = deleteCount
+    public init(typed: String, pieces: [ConversionPiece], suffix: String = "") {
+        self.typed = typed
         self.pieces = pieces
+        self.suffix = suffix
+    }
+
+    /// Backspaces to send, one per character of the run's screen text.
+    public var deleteCount: Int {
+        typed.count
     }
 
     /// The text to type in place of the run. Throws when any chunk fails to convert.
