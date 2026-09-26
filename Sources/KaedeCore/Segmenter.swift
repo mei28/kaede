@@ -42,38 +42,72 @@ struct Segmenter: Sendable {
 
     /// The cheapest segmentation, or nil when no segmentation covers the whole token.
     func segments(of token: Token) -> [Segment]? {
-        let readings = Readings(qwerty: Array(token.qwerty), ebi: Array(token.ebi))
-        let count = readings.qwerty.count
-        let kinds = SegmentKind.allCases
-        // best[position][kind]: the cheapest way to reach position with a segment of kind ending there
-        var best = Array(repeating: [Arrival?](repeating: nil, count: kinds.count), count: count + 1)
+        topSegmentations(of: token, count: 1).first
+    }
 
-        for start in 0..<count {
-            let arrivals: [(kind: SegmentKind?, cost: Double)] = start == 0
-                ? [(nil, 0)]
-                : kinds.indices.compactMap { index in best[start][index].map { (kinds[index], $0.cost) } }
-            for arrival in arrivals {
+    /// Up to `count` distinct segmentations, cheapest first. Ties keep the order the search
+    /// finds them in, which switches kind at the earliest point.
+    func topSegmentations(of token: Token, count: Int) -> [[Segment]] {
+        let readings = Readings(qwerty: Array(token.qwerty), ebi: Array(token.ebi))
+        let length = readings.qwerty.count
+        let kinds = SegmentKind.allCases
+        // Different syllable splits can spell the same segmentation, so for several results keep
+        // a wider beam and drop duplicates at the end. One result needs only the best per state,
+        // which keeps the tap's own planning as fast as a plain cheapest-path search.
+        let beam = count == 1 ? 1 : count * 10
+        // best[position][kind]: the cheapest ways to reach position with a segment of kind ending there
+        var best = Array(repeating: [[Arrival]](repeating: [], count: kinds.count), count: length + 1)
+
+        for start in 0..<length {
+            for arrival in start == 0 ? [From(kind: nil, rank: 0, cost: 0)] : arrivals(at: best[start]) {
                 for (index, kind) in kinds.enumerated() {
                     // Two English words need a space between them, which would end the token
                     if arrival.kind == kind && !kind.isJapanese { continue }
                     let switchCost = arrival.kind == nil || arrival.kind == kind ? 0 : Self.switchCost
                     for step in steps(of: kind, from: start, in: readings) {
-                        let cost = arrival.cost + switchCost + step.cost
-                        if cost < best[step.end][index]?.cost ?? .infinity {
-                            best[step.end][index] = Arrival(cost: cost, start: start, previousKind: arrival.kind)
-                        }
+                        let candidate = Arrival(
+                            cost: arrival.cost + switchCost + step.cost,
+                            start: start,
+                            previousKind: arrival.kind,
+                            previousRank: arrival.rank
+                        )
+                        Self.insert(candidate, into: &best[step.end][index], keeping: beam)
                     }
                 }
             }
         }
 
-        guard let last = kinds.indices
-            .filter({ best[count][$0] != nil })
-            .min(by: { best[count][$0]!.cost < best[count][$1]!.cost })
-        else {
-            return nil
+        var results: [[Segment]] = []
+        for end in arrivals(at: best[length]).sorted(by: { $0.cost < $1.cost }) {
+            let segments = segments(backtrackingFrom: end, best: best, readings: readings)
+            if !results.contains(segments) {
+                results.append(segments)
+            }
+            if results.count == count { break }
         }
-        return segments(backtrackingFrom: kinds[last], best: best, readings: readings)
+        return results
+    }
+
+    /// Where the search can continue from a position, rank by rank so that the best ways are
+    /// extended first and keep their place among later ties.
+    private func arrivals(at position: [[Arrival]]) -> [From] {
+        let kinds = SegmentKind.allCases
+        let deepest = position.map(\.count).max() ?? 0
+        return (0..<deepest).flatMap { rank in
+            kinds.indices.compactMap { index in
+                rank < position[index].count ? From(kind: kinds[index], rank: rank, cost: position[index][rank].cost) : nil
+            }
+        }
+    }
+
+    /// Inserts after every arrival of equal or lower cost, so earlier finds win ties.
+    private static func insert(_ arrival: Arrival, into list: inout [Arrival], keeping limit: Int) {
+        let index = list.firstIndex { $0.cost > arrival.cost } ?? list.count
+        guard index < limit else { return }
+        list.insert(arrival, at: index)
+        if list.count > limit {
+            list.removeLast()
+        }
     }
 
     private struct Readings {
@@ -89,6 +123,15 @@ struct Segmenter: Sendable {
         var cost: Double
         var start: Int
         var previousKind: SegmentKind?
+        /// Which of the previous state's arrivals this one extends.
+        var previousRank: Int
+    }
+
+    /// A state the search extends: a kind (nil at the token start), its rank there, and its cost.
+    private struct From {
+        var kind: SegmentKind?
+        var rank: Int
+        var cost: Double
     }
 
     private struct Step {
@@ -123,16 +166,16 @@ struct Segmenter: Sendable {
         return steps
     }
 
-    private func segments(backtrackingFrom lastKind: SegmentKind, best: [[Arrival?]], readings: Readings) -> [Segment] {
+    private func segments(backtrackingFrom end: From, best: [[[Arrival]]], readings: Readings) -> [Segment] {
         let kinds = SegmentKind.allCases
         var ranges: [(kind: SegmentKind, range: Range<Int>)] = []
-        var end = best.count - 1
-        var kind: SegmentKind? = lastKind
-        while let current = kind {
-            let arrival = best[end][kinds.firstIndex(of: current)!]!
-            ranges.append((current, arrival.start..<end))
-            end = arrival.start
-            kind = arrival.previousKind
+        var position = best.count - 1
+        var current: (kind: SegmentKind, rank: Int)? = end.kind.map { ($0, end.rank) }
+        while let (kind, rank) = current {
+            let arrival = best[position][kinds.firstIndex(of: kind)!][rank]
+            ranges.append((kind, arrival.start..<position))
+            position = arrival.start
+            current = arrival.previousKind.map { ($0, arrival.previousRank) }
         }
         // Consecutive Japanese steps of one kind are syllables of the same segment
         var segments: [Segment] = []
