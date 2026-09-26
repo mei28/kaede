@@ -36,6 +36,35 @@ public struct EnterPlanner: Sendable {
         return Self.decision(items: items, segments: segments)
     }
 
+    /// Distinct plans for a run that converts: the plan itself first, then plans that differ from
+    /// it in one token, using that token's 2nd to `perToken`-th segmentation. Empty when the
+    /// run passes. A chooser (Jev) picks among the sentences these convert to.
+    public func alternatives(for run: Run, perToken: Int) -> [[ConversionPiece]] {
+        guard case .convert = plan(run) else { return [] }
+        let items = Self.items(of: run)
+        let options: [[[Segment]]] = items.map { item in
+            guard case let .token(token) = item else { return [[]] }
+            let top = segmenter.topSegmentations(of: token, count: perToken)
+            return top.isEmpty ? [segmentsOrAsTyped(token)] : top
+        }
+        let best = options.map { $0[0] }
+        var choices = [best]
+        for (index, tokenOptions) in options.enumerated() {
+            for option in tokenOptions.dropFirst() {
+                var choice = best
+                choice[index] = option
+                choices.append(choice)
+            }
+        }
+        var alternatives: [[ConversionPiece]] = []
+        for choice in choices {
+            if case let .convert(pieces) = Self.decision(items: items, segments: choice), !alternatives.contains(pieces) {
+                alternatives.append(pieces)
+            }
+        }
+        return alternatives
+    }
+
     /// A token nothing can read stays as typed.
     private func segmentsOrAsTyped(_ token: Token) -> [Segment] {
         segmenter.segments(of: token) ?? [Segment(kind: .qwertyEnglish, text: token.qwerty)]

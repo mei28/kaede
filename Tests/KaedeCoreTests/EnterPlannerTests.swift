@@ -125,4 +125,16 @@ import Testing
         let lexicon = try EnglishLexicon(contentsOfFiles: ["/usr/share/dict/words"] + bundledWordLists)
         #expect(EnterPlanner(lexicon: lexicon).plan(Run(typing: typed)) == .pass)
     }
+
+    @Test func alternativesStartWithThePlanAndVaryOneTokenAtATime() {
+        let run = Run(typing: "jajsd/a watashinoiflsgjdhfkf;a")
+        let alternatives = planner.alternatives(for: run, perToken: 3)
+        guard case let .convert(best) = planner.plan(run) else {
+            Issue.record("expected the run to convert")
+            return
+        }
+        #expect(alternatives.first == best)
+        #expect(alternatives.contains([.romaji("tatoeba"), .verbatim(" "), .romaji("watashinoiisoutekiniha")]))
+        #expect(Set(alternatives.map { "\($0)" }).count == alternatives.count)
+    }
 }
