@@ -50,4 +50,8 @@ import Testing
     @Test func passesAnEmptyRun() {
         #expect(planner.plan(Run()) == .pass)
     }
+
+    @Test func convertsJapaneseTypedInQwerty() {
+        #expect(planner.plan(Run(typing: "watashino")) == .convert([.romaji("watashino")]))
+    }
 }

@@ -35,8 +35,10 @@ public struct EnterPlanner: Sendable {
             case let .separator(text):
                 pieces.append(.verbatim(text))
             case let .token(token):
-                guard RomajiParser.isRomaji(token.ebi) else { return .pass }
-                pieces.append(.romaji(token.ebi))
+                guard let romaji = [token.ebi, token.qwerty].first(where: RomajiParser.isRomaji) else {
+                    return .pass
+                }
+                pieces.append(.romaji(romaji))
             }
         }
         return .convert(pieces)
