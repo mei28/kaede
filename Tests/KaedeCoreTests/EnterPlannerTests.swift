@@ -215,4 +215,25 @@ import Testing
         let planner = EnterPlanner(lexicon: try EnglishLexicon(contentsOfFiles: ["/usr/share/dict/words"] + bundledWordLists))
         #expect(planner.plan(Run(typing: "thankyou")) != .convert([.verbatim("thank you")]))
     }
+
+    // MARK: Questions for Jev
+
+    @Test func asksWhetherToRespaceEnglishTypedWithoutSpaces() throws {
+        #expect(try respacingPlanner().question(for: Run(typing: "localhost")) == .spacing(respaced: "local host"))
+    }
+
+    @Test(arguments: [
+        ("are", "are (English)"),  // an English word that also reads whole as romaji
+        ("watashino", "watashino (Japanese romaji)"),  // romaji typed in QWERTY
+        ("api;a,amajd", "api (English) + hamadate (Japanese romaji)"),  // English and Japanese in one word
+    ])
+    func asksTheLanguageWithTheRulesReading(typed: String, reading: String) throws {
+        #expect(try respacingPlanner().question(for: Run(typing: typed)) == .language(ruleReading: reading))
+    }
+
+    @Test(arguments: ["jajsd/a", "the", "keyboard"])
+    func asksNothingAboutClearWords(typed: String) throws {
+        // Ebi-fingered Japanese, and known English that does not read as romaji
+        #expect(try respacingPlanner().question(for: Run(typing: typed)) == nil)
+    }
 }

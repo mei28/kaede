@@ -15,6 +15,14 @@ public enum EnterDecision: Equatable, Sendable {
 }
 
 /// Decides, from rules alone, whether a run is Japanese typed with Ebi fingering.
+/// What Kaede would ask Jev about a word before settling it.
+public enum PlannerQuestion: Equatable, Sendable {
+    /// Whether English typed without spaces is prose to respace, or a name or code to keep.
+    case spacing(respaced: String)
+    /// Whether the word is Japanese or English; `ruleReading` is how the rules read it.
+    case language(ruleReading: String)
+}
+
 /// A language an ambiguous word can be settled to.
 public enum Language: Sendable {
     case japanese
@@ -86,6 +94,36 @@ public struct EnterPlanner: Sendable {
             // One screen character per key, so the tail's length in keys is its segments' length
             typedTail: String(typed.suffix(tail.map(\.text.count).reduce(0, +)))
         )
+    }
+
+    /// The question about the run's first doubtful word, or nil when the rules are sure:
+    /// - English typed without spaces that the rules would respace (spacing);
+    /// - a known English word that also reads whole as romaji ("are");
+    /// - letters typed in QWERTY that read whole as plain romaji and are no known word
+    ///   ("watashino", but also names such as "karaoke");
+    /// - a word the rules read as part English, part Japanese ("api" + hamadate).
+    /// Japanese typed with Ebi fingering alone raises no question.
+    public func question(for run: Run) -> PlannerQuestion? {
+        guard run.strokeCount >= Self.minimumStrokes else { return nil }
+        for item in Self.items(of: run) {
+            guard case let .token(token) = item else { continue }
+            if let respaced = respaced(token) {
+                return .spacing(respaced: respaced)
+            }
+            let segments = segmentsOrAsTyped(token)
+            let hasJapanese = segments.contains { $0.kind.isJapanese }
+            let hasEnglish = segments.contains { !$0.kind.isJapanese }
+            if isAmbiguous(token) || isUnknownQwertyRomaji(token) || (hasJapanese && hasEnglish) {
+                return .language(ruleReading: segments.map { segment in
+                    "\(segment.text) (\(segment.kind.isJapanese ? "Japanese romaji" : "English"))"
+                }.joined(separator: " + "))
+            }
+        }
+        return nil
+    }
+
+    private func isUnknownQwertyRomaji(_ token: Token) -> Bool {
+        RomajiParser.isPlainRomaji(token.qwerty) && !segmenter.lexicon.contains(token.qwerty)
     }
 
     /// Whether the rules cannot settle the run's language: one of its words is a known English
