@@ -161,13 +161,11 @@ public struct EnterPlanner: Sendable {
     /// differently from what the keys already put on screen.
     private static func assemble(items: [RunItem], segments: [[Segment]]) -> (pieces: [ConversionPiece], changesScreen: Bool) {
         var pieces: [ConversionPiece] = []
-        var changesScreen = false
         for (item, segments) in zip(items, segments) {
             if case let .separator(text) = item {
                 pieces.appendVerbatim(text)
             }
             for segment in segments {
-                changesScreen = changesScreen || segment.kind != .qwertyEnglish
                 if segment.kind.isJapanese {
                     pieces.appendRomaji(segment.text)
                 } else {
@@ -175,7 +173,14 @@ public struct EnterPlanner: Sendable {
                 }
             }
         }
-        return (pieces, changesScreen)
+        // Adjacent verbatim text merges, so a run left as typed assembles into its screen text alone
+        let screen = items.map { item in
+            switch item {
+            case let .separator(text): text
+            case let .token(token): token.qwerty
+            }
+        }.joined()
+        return (pieces, pieces != (screen.isEmpty ? [] : [.verbatim(screen)]))
     }
 
     /// Splits the run into tokens of layout keys and the literals between them, in order.
