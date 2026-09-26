@@ -51,10 +51,8 @@ enum InputSourceSwitcher {
 
     nonisolated private static func inputSource(_ id: String) -> TISInputSource? {
         let filter = [kTISPropertyInputSourceID as String: id] as CFDictionary
-        guard let sources = TISCreateInputSourceList(filter, false)?.takeRetainedValue(),
-              CFArrayGetCount(sources) > 0 else {
-            return nil
-        }
-        return unsafeBitCast(CFArrayGetValueAtIndex(sources, 0), to: TISInputSource.self)
+        // Bridging to a Swift array retains the element, which outlives the CFArray
+        let sources = TISCreateInputSourceList(filter, false)?.takeRetainedValue() as? [TISInputSource]
+        return sources?.first
     }
 }
