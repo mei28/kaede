@@ -29,11 +29,17 @@ public struct EnterPlanner: Sendable {
         if run.strokeCount < Self.minimumStrokes || isEnglish(run) {
             return .pass
         }
-        let pieces = Self.pieces(of: run.reading(in: .ebi))
-        let allRomaji = pieces.allSatisfy { piece in
-            if case let .romaji(chunk) = piece { RomajiParser.isRomaji(chunk) } else { true }
+        var pieces: [ConversionPiece] = []
+        for item in Self.items(of: run) {
+            switch item {
+            case let .separator(text):
+                pieces.append(.verbatim(text))
+            case let .token(token):
+                guard RomajiParser.isRomaji(token.ebi) else { return .pass }
+                pieces.append(.romaji(token.ebi))
+            }
         }
-        return allRomaji ? .convert(pieces) : .pass
+        return .convert(pieces)
     }
 
     /// Guards against Ebi misreadings of real English, such as "and" read as "age".
@@ -41,24 +47,34 @@ public struct EnterPlanner: Sendable {
         run.screenText.split(separator: " ").allSatisfy { lexicon.contains(String($0)) }
     }
 
-    /// Splits a reading into space-free chunks and the spaces between them, in order.
-    private static func pieces(of reading: String) -> [ConversionPiece] {
-        var pieces: [ConversionPiece] = []
-        var current = ""
-        for character in reading {
-            if !current.isEmpty, (character == " ") != (current.last == " ") {
-                pieces.append(piece(current))
-                current = ""
-            }
-            current.append(character)
-        }
-        if !current.isEmpty {
-            pieces.append(piece(current))
-        }
-        return pieces
+    /// A space-free stretch of the run, read in both layouts (one character per element).
+    struct Token: Equatable {
+        var qwerty: String
+        var ebi: String
     }
 
-    private static func piece(_ text: String) -> ConversionPiece {
-        text.first == " " ? .verbatim(text) : .romaji(text)
+    enum Item: Equatable {
+        case token(Token)
+        case separator(String)
+    }
+
+    /// Splits the run into tokens and the spaces between them, in order.
+    static func items(of run: Run) -> [Item] {
+        let qwerty = Array(run.reading(in: .qwerty))
+        let ebi = Array(run.reading(in: .ebi))
+        var items: [Item] = []
+        var start = 0
+        while start < qwerty.count {
+            let isSpace = qwerty[start] == " "
+            var end = start
+            while end < qwerty.count, (qwerty[end] == " ") == isSpace {
+                end += 1
+            }
+            items.append(isSpace
+                ? .separator(String(qwerty[start..<end]))
+                : .token(Token(qwerty: String(qwerty[start..<end]), ebi: String(ebi[start..<end]))))
+            start = end
+        }
+        return items
     }
 }
