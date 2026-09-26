@@ -100,13 +100,13 @@ import Testing
         let typedDuring = RawKey(keyCode: 0x00, character: "a")
         #expect(engine.handle(typedDuring) == .suppress)
         #expect(engine.handle(.enter) == .suppress)
-        #expect(engine.finishReplacement() == [typedDuring, .enter])
+        #expect(engine.finishReplacement(candidates: []) == [typedDuring, .enter])
     }
 
     @Test func handlesKeysNormallyAfterTheReplacementFinishes() {
         engine.type("jajsd/a")
         _ = engine.handle(.enter)
-        _ = engine.finishReplacement()
+        _ = engine.finishReplacement(candidates: [])
         #expect(engine.run.elements.isEmpty)
         #expect(engine.handle(RawKey(keyCode: 0x00, character: "a")) == .pass)
         #expect(engine.run.elements == [.stroke(.a, shift: false)])
@@ -120,7 +120,7 @@ import Testing
         engine.type("jajsd/a")
         _ = engine.handle(.enter)
         #expect(engine.handle(own) == .pass)
-        #expect(engine.finishReplacement().isEmpty)
+        #expect(engine.finishReplacement(candidates: []).isEmpty)
     }
 
     @Test func spaceAfterAConvertingWordReplacesItAndTypesTheSpaceAfterIt() {
@@ -128,7 +128,7 @@ import Testing
         let space = RawKey(keyCode: 49, character: " ")
         // Typed with the replacement rather than replayed: a replayed space would pick the next candidate
         #expect(engine.handle(space) == .replace(Replacement(typed: "jajsd/a", pieces: [.romaji("tatoeba")], suffix: " ")))
-        #expect(engine.finishReplacement().isEmpty)
+        #expect(engine.finishReplacement(candidates: ["例えば"]).isEmpty)
     }
 
     @Test func spaceAfterAPassingWordPassesAndStartsANewRun() {
@@ -143,5 +143,77 @@ import Testing
         engine.type("jajsd/a")
         #expect(engine.handle(RawKey(keyCode: 49, character: " ", control: true)) == .pass)
         #expect(engine.run.elements.isEmpty)
+    }
+
+    // MARK: Correcting the last conversion
+
+    let space = RawKey(keyCode: 49, character: " ")
+    let shiftSpace = RawKey(keyCode: 49, character: " ", shift: true)
+
+    /// Converts "jajsd/a" with a space and offers the candidates, leaving "例えば " on screen.
+    func convertTatoeba(candidates: [String] = ["例えば", "たとえば", "喩えば"]) {
+        engine.type("jajsd/a")
+        _ = engine.handle(space)
+        _ = engine.finishReplacement(candidates: candidates)
+    }
+
+    @Test func spaceStepsToTheNextCandidateAndShiftSpaceBackWrappingAround() {
+        convertTatoeba()
+        #expect(engine.handle(space) == .rewrite(deleteCount: 4, text: "たとえば "))
+        #expect(engine.finishRewrite().isEmpty)
+        #expect(engine.handle(space) == .rewrite(deleteCount: 5, text: "喩えば "))
+        _ = engine.finishRewrite()
+        #expect(engine.handle(space) == .rewrite(deleteCount: 4, text: "例えば "))
+        _ = engine.finishRewrite()
+        #expect(engine.handle(shiftSpace) == .rewrite(deleteCount: 4, text: "喩えば "))
+    }
+
+    @Test func escapeRestoresTheTypedTextAndEndsCorrecting() {
+        convertTatoeba()
+        _ = engine.handle(space)
+        _ = engine.finishRewrite()
+        // "たとえば " is on screen
+        #expect(engine.handle(RawKey(keyCode: 53, character: "\u{1B}")) == .rewrite(deleteCount: 5, text: "jajsd/a "))
+        _ = engine.finishRewrite()
+        #expect(engine.handle(space) == .pass)
+    }
+
+    @Test func anotherKeySettlesTheConversionAndIsHandledAsUsual() {
+        convertTatoeba()
+        #expect(engine.handle(RawKey(keyCode: 0x00, character: "a")) == .pass)
+        #expect(engine.run.elements == [.stroke(.a, shift: false)])
+        #expect(engine.handle(space) == .pass)  // "a" is one stroke: nothing to convert, nothing to step through
+    }
+
+    @Test func enterSettlesTheConversionAndPasses() {
+        convertTatoeba()
+        #expect(engine.handle(.enter) == .pass)
+        #expect(engine.handle(space) == .pass)
+    }
+
+    @Test func aClickOrAppSwitchSettlesTheConversion() {
+        convertTatoeba()
+        engine.discardRun()
+        #expect(engine.handle(space) == .pass)
+    }
+
+    @Test func aFailedConversionOffersNothingToStepThrough() {
+        convertTatoeba(candidates: [])
+        #expect(engine.handle(space) == .pass)
+    }
+
+    @Test func keysPressedDuringARewriteAreHeldAndReturned() {
+        convertTatoeba()
+        _ = engine.handle(space)
+        let typedDuring = RawKey(keyCode: 0x00, character: "a")
+        #expect(engine.handle(typedDuring) == .suppress)
+        #expect(engine.finishRewrite() == [typedDuring])
+    }
+
+    @Test func aConversionByEnterCanBeSteppedThroughWithoutASuffix() {
+        engine.type("jajsd/a")
+        _ = engine.handle(.enter)
+        _ = engine.finishReplacement(candidates: ["例えば", "たとえば"])
+        #expect(engine.handle(space) == .rewrite(deleteCount: 3, text: "たとえば"))
     }
 }

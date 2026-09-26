@@ -33,6 +33,7 @@ public struct RawKey: Equatable, Sendable {
 enum KeyCode {
     static let backspace: UInt16 = 51
     static let space: UInt16 = 49
+    static let escape: UInt16 = 53
     /// Return and keypad Enter.
     static let enter: Set<UInt16> = [36, 76]
     /// Keys that move the caret or leave the text: Tab, Escape, and the four arrows.
@@ -46,6 +47,8 @@ public enum KeyResponse: Equatable, Sendable {
     case suppress
     /// Suppress the event and replace the run on screen.
     case replace(Replacement)
+    /// Suppress the event, delete `deleteCount` characters before the caret and type `text`.
+    case rewrite(deleteCount: Int, text: String)
 }
 
 /// Tracks the run and decides, per event, what the tap does. Runs on the tap's thread only.
@@ -55,14 +58,19 @@ public final class KeyEngine {
     /// Keys pressed while a replacement is being typed, or nil when none is in progress.
     /// Letting them through would race the replacement: a second Enter could send the half-replaced text.
     private var heldKeys: [RawKey]?
+    /// The replacement being typed, until its candidates arrive.
+    private var pendingReplacement: Replacement?
+    /// The last conversion, while the user can still step through its candidates.
+    private var correction: Correction?
 
     public init(planner: EnterPlanner) {
         self.planner = planner
     }
 
-    /// The caret may have moved: a click or a switch to another app.
+    /// The caret may have moved: a click or a switch to another app. Ends correcting too.
     public func discardRun() {
         run = Run()
+        correction = nil
     }
 
     public func handle(_ key: RawKey) -> KeyResponse {
@@ -72,6 +80,13 @@ public final class KeyEngine {
         if heldKeys != nil {
             heldKeys?.append(key)
             return .suppress
+        }
+        if let correction {
+            if let response = correct(correction, with: key) {
+                return response
+            }
+            // Any other key settles the conversion and is handled as usual
+            self.correction = nil
         }
         if KeyCode.enter.contains(key.keyCode) {
             return endRun(suffix: "")
@@ -84,14 +99,53 @@ public final class KeyEngine {
         return .pass
     }
 
-    /// Ends the replacement and returns the held keys, in the order they were pressed,
-    /// for the caller to post again as fresh input.
-    public func finishReplacement() -> [RawKey] {
-        guard let keys = heldKeys else {
+    /// Ends the replacement and returns the held keys, in the order they were pressed, for
+    /// the caller to post again as fresh input. With candidates (the first being the text now
+    /// on screen), the user can step through them until the next other key; without, the
+    /// conversion failed and there is nothing to step through.
+    public func finishReplacement(candidates: [String]) -> [RawKey] {
+        guard let replacement = pendingReplacement else {
             preconditionFailure("finishReplacement called with no replacement in progress")
+        }
+        pendingReplacement = nil
+        if !candidates.isEmpty {
+            correction = Correction(typed: replacement.typed, suffix: replacement.suffix, candidates: candidates, index: 0)
+        }
+        return releaseHeldKeys()
+    }
+
+    /// Ends a rewrite and returns the keys held meanwhile.
+    public func finishRewrite() -> [RawKey] {
+        releaseHeldKeys()
+    }
+
+    private func releaseHeldKeys() -> [RawKey] {
+        guard let keys = heldKeys else {
+            preconditionFailure("no replacement or rewrite in progress")
         }
         heldKeys = nil
         return keys
+    }
+
+    /// Space and Shift+Space step through the candidates, Escape restores what was typed.
+    /// Returns nil for any other key.
+    private func correct(_ correction: Correction, with key: RawKey) -> KeyResponse? {
+        guard !key.command, !key.control, !key.option else { return nil }
+        let onScreen = correction.shown + correction.suffix
+        switch key.keyCode {
+        case KeyCode.space:
+            var next = correction
+            next.index = (correction.index + (key.shift ? -1 : 1) + correction.candidates.count) % correction.candidates.count
+            self.correction = next
+            heldKeys = []
+            return .rewrite(deleteCount: onScreen.count, text: next.shown + next.suffix)
+        case KeyCode.escape:
+            self.correction = nil
+            heldKeys = []
+            return .rewrite(deleteCount: onScreen.count, text: correction.typed + correction.suffix)
+        default:
+            return nil
+        }
     }
 
     /// Updates the run for a key that passes through.
@@ -122,7 +176,9 @@ public final class KeyEngine {
             return .pass
         case let .convert(pieces):
             heldKeys = []
-            return .replace(Replacement(typed: typed, pieces: pieces, suffix: suffix))
+            let replacement = Replacement(typed: typed, pieces: pieces, suffix: suffix)
+            pendingReplacement = replacement
+            return .replace(replacement)
         }
     }
 
@@ -137,5 +193,19 @@ public final class KeyEngine {
     /// keyboard's right Shift sets the same bit, so only these four keys honor it.
     private static func isSymbolLayer(_ key: RawKey, at position: KeyPosition) -> Bool {
         key.rightShift && [.semicolon, .comma, .period, .slash].contains(position)
+    }
+}
+
+/// The last conversion and the candidates the user can step through.
+struct Correction: Equatable {
+    /// The run's text before conversion, restored by Escape.
+    var typed: String
+    /// Typed after the conversion and kept while stepping ("" when Enter converted).
+    var suffix: String
+    var candidates: [String]
+    var index: Int
+
+    var shown: String {
+        candidates[index]
     }
 }

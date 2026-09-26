@@ -18,7 +18,7 @@ do {
 }
 
 let tap = EventTap(
-    engine: KeyEngine(planner: EnterPlanner(lexicon: lexicon)),
+    planner: EnterPlanner(lexicon: lexicon),
     converter: AzooKeyConverter(
         dictionaryDirectory: dictionaryDirectory,
         memoryDirectory: FileManager.default.temporaryDirectory

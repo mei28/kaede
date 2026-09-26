@@ -5,12 +5,20 @@ import KaedeCore
 @MainActor
 final class EventTap {
     private let engine: KeyEngine
+    /// The engine's planner, reused to find other splits when building candidates.
+    private let planner: EnterPlanner
     private let converter: any KanaKanjiConverting
     private let poster = EventPoster()
     private var machPort: CFMachPort?
 
-    init(engine: KeyEngine, converter: any KanaKanjiConverting) {
-        self.engine = engine
+    /// Candidates offered after a conversion.
+    private static let candidateLimit = 8
+    /// Splits tried per token for the candidates' other splits.
+    private static let splitsPerToken = 3
+
+    init(planner: EnterPlanner, converter: any KanaKanjiConverting) {
+        self.engine = KeyEngine(planner: planner)
+        self.planner = planner
         self.converter = converter
     }
 
@@ -86,6 +94,10 @@ final class EventTap {
             // Replace after the callback returns, so the tap is not held up by the conversion.
             DispatchQueue.main.async { self.replace(replacement) }
             return false
+        case let .rewrite(deleteCount, text):
+            log.info("Rewrites \(deleteCount, privacy: .public) characters with a candidate or the typed text.")
+            DispatchQueue.main.async { self.rewrite(deleteCount: deleteCount, text: text) }
+            return false
         }
     }
 
@@ -101,8 +113,37 @@ final class EventTap {
             log.error("Conversion failed: \(error)")
             NSSound.beep()
             poster.type(replacement.suffix)
+            finishReplacement(candidates: [])
+            return
         }
-        for key in engine.finishReplacement() {
+        // Built after the conversion is on screen, so it does not delay it
+        do {
+            finishReplacement(candidates: try timedCandidates(for: replacement))
+        } catch {
+            log.error("Building candidates failed, so this conversion cannot be stepped through: \(error)")
+            finishReplacement(candidates: [])
+        }
+    }
+
+    private func finishReplacement(candidates: [String]) {
+        for key in engine.finishReplacement(candidates: candidates) {
+            poster.replay(key)
+        }
+    }
+
+    private func timedCandidates(for replacement: Replacement) throws -> [String] {
+        let clock = ContinuousClock()
+        let started = clock.now
+        let alternatives = planner.alternatives(for: Run(typing: replacement.typed), perToken: Self.splitsPerToken)
+        let candidates = try replacement.candidates(using: converter, alternatives: alternatives, limit: Self.candidateLimit)
+        log.info("Built \(candidates.count, privacy: .public) candidates in \(clock.now - started, privacy: .public).")
+        return candidates
+    }
+
+    private func rewrite(deleteCount: Int, text: String) {
+        poster.deleteBackward(deleteCount)
+        poster.type(text)
+        for key in engine.finishRewrite() {
             poster.replay(key)
         }
     }
