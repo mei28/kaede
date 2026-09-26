@@ -32,6 +32,7 @@ public struct RawKey: Equatable, Sendable {
 /// macOS virtual key codes of the keys with their own rules.
 enum KeyCode {
     static let backspace: UInt16 = 51
+    static let space: UInt16 = 49
     /// Return and keypad Enter.
     static let enter: Set<UInt16> = [36, 76]
     /// Keys that move the caret or leave the text: Tab, Escape, and the four arrows.
@@ -73,7 +74,11 @@ public final class KeyEngine {
             return .suppress
         }
         if KeyCode.enter.contains(key.keyCode) {
-            return handleEnter()
+            return endRun(replaying: [])
+        }
+        if key.keyCode == KeyCode.space, !key.command, !key.control, !key.option {
+            // Words never share a segment across a space, so the word before it can convert now
+            return endRun(replaying: [key])
         }
         record(key)
         return .pass
@@ -106,7 +111,9 @@ public final class KeyEngine {
         }
     }
 
-    private func handleEnter() -> KeyResponse {
+    /// Plans the run and starts a new one. When the run converts, the key that ended it is
+    /// suppressed and, if listed in `replaying`, typed again after the replacement.
+    private func endRun(replaying keys: [RawKey]) -> KeyResponse {
         let decision = planner.plan(run)
         let deleteCount = run.screenText.count
         run = Run()
@@ -114,7 +121,7 @@ public final class KeyEngine {
         case .pass:
             return .pass
         case let .convert(pieces):
-            heldKeys = []
+            heldKeys = keys
             return .replace(Replacement(deleteCount: deleteCount, pieces: pieces))
         }
     }

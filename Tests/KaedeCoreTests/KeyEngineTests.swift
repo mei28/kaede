@@ -10,11 +10,10 @@ import Testing
         #expect(engine.run.elements == [.stroke(.a, shift: false), .stroke(.j, shift: true)])
     }
 
-    @Test func recordsSpaceDigitsAndOtherPrintableKeysAsLiterals() {
-        #expect(engine.handle(RawKey(keyCode: 49, character: " ")) == .pass)
+    @Test func recordsDigitsAndOtherPrintableKeysAsLiterals() {
         #expect(engine.handle(RawKey(keyCode: 0x12, character: "1")) == .pass)
         #expect(engine.handle(RawKey(keyCode: 27, character: "-")) == .pass)
-        #expect(engine.run.elements == [.literal(" "), .literal("1"), .literal("-")])
+        #expect(engine.run.elements == [.literal("1"), .literal("-")])
     }
 
     @Test func recordsRightShiftOnTheFourSymbolKeysAsSymbolLiterals() {
@@ -78,10 +77,10 @@ import Testing
     }
 
     @Test func enterThatConvertsIsSuppressedAndYieldsAReplacement() {
-        engine.type("jajsd/a hskkkahakk.fmd")
+        engine.type("jajsd/ahskkkahakk.fmd")
         #expect(engine.handle(.enter) == .replace(Replacement(
-            deleteCount: 22,
-            pieces: [.romaji("tatoeba"), .verbatim(" "), .romaji("konnnakannjide")]
+            deleteCount: 21,
+            pieces: [.romaji("tatoebakonnnakannjide")]
         )))
     }
 
@@ -122,5 +121,26 @@ import Testing
         _ = engine.handle(.enter)
         #expect(engine.handle(own) == .pass)
         #expect(engine.finishReplacement().isEmpty)
+    }
+
+    @Test func spaceAfterAConvertingWordReplacesItAndReplaysTheSpace() {
+        engine.type("jajsd/a")
+        let space = RawKey(keyCode: 49, character: " ")
+        #expect(engine.handle(space) == .replace(Replacement(deleteCount: 7, pieces: [.romaji("tatoeba")])))
+        #expect(engine.finishReplacement() == [space])
+    }
+
+    @Test func spaceAfterAPassingWordPassesAndStartsANewRun() {
+        engine.type("the")
+        #expect(engine.handle(RawKey(keyCode: 49, character: " ")) == .pass)
+        #expect(engine.run.elements.isEmpty)
+        engine.type("jajsd/a")
+        #expect(engine.handle(.enter) == .replace(Replacement(deleteCount: 7, pieces: [.romaji("tatoeba")])))
+    }
+
+    @Test func spaceWithAModifierDiscardsTheRun() {
+        engine.type("jajsd/a")
+        #expect(engine.handle(RawKey(keyCode: 49, character: " ", control: true)) == .pass)
+        #expect(engine.run.elements.isEmpty)
     }
 }
