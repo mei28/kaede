@@ -10,9 +10,11 @@ Startup.verify(dictionaryDirectory: dictionaryDirectory)
 
 let lexicon: EnglishLexicon
 do {
-    lexicon = try EnglishLexicon(contentsOfFile: "/usr/share/dict/words")
+    lexicon = try EnglishLexicon(contentsOfFiles: ["/usr/share/dict/words"] + ["en10k.txt", "extra-words.txt"].map {
+        resources.appending(path: $0).path(percentEncoded: false)
+    })
 } catch {
-    terminate("Could not read /usr/share/dict/words: \(error)")
+    terminate("Could not read the English word lists: \(error)")
 }
 
 let tap = EventTap(

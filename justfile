@@ -28,6 +28,8 @@ bundle:
     cp Packaging/Info.plist dist/Kaede.app/Contents/Info.plist
     # 変換辞書（Kaede は Contents/Resources/Dictionary から読む）
     cp -R {{dictionary}} dist/Kaede.app/Contents/Resources/Dictionary
+    # 英単語のリスト（/usr/share/dict/words に足りない活用形や固有の語を補う）
+    cp Resources/en10k.txt Resources/extra-words.txt dist/Kaede.app/Contents/Resources/
     codesign --force --sign "{{signing_identity}}" --identifier com.mei28.kaede dist/Kaede.app
     @echo "dist/Kaede.app を作成しました（just run で起動）"
 

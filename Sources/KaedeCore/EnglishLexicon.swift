@@ -7,11 +7,27 @@ public struct EnglishLexicon: Sendable {
 
     /// - Parameter wordList: one word per line, as in `/usr/share/dict/words`.
     public init(wordList: String) {
-        words = Set(wordList.split(separator: "\n").map { $0.lowercased() })
+        self.init(wordLists: [wordList])
     }
 
-    public init(contentsOfFile path: String) throws {
-        self.init(wordList: try String(contentsOfFile: path, encoding: .utf8))
+    /// - Parameter wordLists: lists of one word per line; a word in any of them is known.
+    public init(wordLists: [String]) {
+        words = Set(
+            wordLists.flatMap { $0.split(separator: "\n") }
+                .map { $0.lowercased() }
+                .filter { $0.count > 2 || Self.shortWords.contains($0) }
+        )
+    }
+
+    /// The only words of one or two letters that count. Word lists also carry fragments such as
+    /// "ha" and "ko", which would let English claim pieces of romaji.
+    private static let shortWords: Set<String> = [
+        "a", "i", "am", "an", "as", "at", "be", "by", "do", "go", "he", "hi", "if", "in", "is",
+        "it", "me", "my", "no", "of", "oh", "ok", "on", "or", "so", "to", "up", "us", "we",
+    ]
+
+    public init(contentsOfFiles paths: [String]) throws {
+        self.init(wordLists: try paths.map { try String(contentsOfFile: $0, encoding: .utf8) })
     }
 
     public func contains(_ word: String) -> Bool {
