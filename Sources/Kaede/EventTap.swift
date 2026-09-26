@@ -65,15 +65,24 @@ final class EventTap {
             engine.discardRun()
             return true
         }
-        let isEnter = key.keyCode == 36 || key.keyCode == 76
-        switch engine.handle(key) {
+        // Enter and Space end the run and are planned inside this callback, so time them
+        let endsRun = [36, 76, 49].contains(key.keyCode)
+        let clock = ContinuousClock()
+        let started = clock.now
+        let response = engine.handle(key)
+        if endsRun {
+            let (seconds, attoseconds) = (clock.now - started).components
+            let microseconds = seconds * 1_000_000 + attoseconds / 1_000_000_000_000
+            log.info("Planned in \(microseconds, privacy: .public) µs.")
+        }
+        switch response {
         case .pass:
-            if isEnter { log.info("Enter passed through.") }
+            if endsRun { log.info("Run passed through.") }
             return true
         case .suppress:
             return false
         case let .replace(replacement):
-            log.info("Enter converts: deleting \(replacement.deleteCount, privacy: .public) characters.")
+            log.info("Run converts: deleting \(replacement.deleteCount, privacy: .public) characters.")
             // Replace after the callback returns, so the tap is not held up by the conversion.
             DispatchQueue.main.async { self.replace(replacement) }
             return false
