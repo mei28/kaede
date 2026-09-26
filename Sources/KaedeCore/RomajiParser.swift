@@ -6,16 +6,26 @@ public enum RomajiParser {
         var reachable = Array(repeating: false, count: characters.count + 1)
         reachable[0] = true
         for start in characters.indices where reachable[start] {
-            if isSokuon(characters, at: start) {
-                reachable[start + 1] = true
-            }
-            for length in 1...maxSyllableLength where start + length <= characters.count {
-                if syllables.contains(String(characters[start..<start + length])) {
-                    reachable[start + length] = true
-                }
+            for end in syllableEnds(in: characters, from: start) {
+                reachable[end] = true
             }
         }
         return reachable[characters.count]
+    }
+
+    /// The positions where a syllable starting at `start` can end, shortest first.
+    /// A sokuon (the first of a doubled consonant) counts as a syllable of its own.
+    static func syllableEnds(in characters: [Character], from start: Int) -> [Int] {
+        var ends: [Int] = []
+        if isSokuon(characters, at: start) {
+            ends.append(start + 1)
+        }
+        for length in 1...maxSyllableLength where start + length <= characters.count {
+            if syllables.contains(String(characters[start..<start + length])) {
+                ends.append(start + length)
+            }
+        }
+        return ends
     }
 
     /// A consonant typed twice gives っ for the first one ("kitte", "macchi"); "nn" is ん instead.
