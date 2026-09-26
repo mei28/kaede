@@ -72,6 +72,10 @@ public final class KeyEngine {
     private var pendingCorrectable = false
     /// The ambiguous word waiting for its language.
     private var pendingQuestion: Run?
+    /// The pending question as recorded ("language: …", "spacing: …").
+    private var pendingQuestionText: String?
+    /// Receives each settled word; set only when the user turned the record on.
+    public var recordWord: ((WordRecord) -> Void)?
     /// Words recently finished in this field, as Kaede read them: context for questions.
     private var recentText = ""
     /// jev-auto-ime sends the last 240 characters before the caret.
@@ -101,17 +105,17 @@ public final class KeyEngine {
             preconditionFailure("answerLanguage called with no question pending")
         }
         pendingQuestion = nil
+        let asked = (pendingQuestionText, String(describing: answer))
         let response: KeyResponse
         switch answer {
         case .failed:
-            remember(word.screenText)
-            response = .pass
+            response = keepAsTyped(word, asked: asked)
         case .japanese:
-            response = settle(word, preferring: .japanese)
+            response = settle(word, preferring: .japanese, asked: asked)
         case .english:
-            response = settle(word, preferring: .english)
+            response = settle(word, preferring: .english, asked: asked)
         case .undecided:
-            response = settle(word)
+            response = settle(word, asked: asked)
         }
         return response == .pass ? .rewrite(deleteCount: 0, text: " ") : response
     }
@@ -122,15 +126,15 @@ public final class KeyEngine {
             preconditionFailure("answerSpacing called with no question pending")
         }
         pendingQuestion = nil
+        let asked = (pendingQuestionText, String(describing: answer))
         let response: KeyResponse
         switch answer {
         case .failed:
-            remember(word.screenText)
-            response = .pass
+            response = keepAsTyped(word, asked: asked)
         case .respace, .undecided:
-            response = settle(word, spacing: .respace)
+            response = settle(word, spacing: .respace, asked: asked)
         case .keepAsTyped:
-            response = settle(word, spacing: .keepAsTyped)
+            response = settle(word, spacing: .keepAsTyped, asked: asked)
         }
         return response == .pass ? .rewrite(deleteCount: 0, text: " ") : response
     }
@@ -249,8 +253,10 @@ public final class KeyEngine {
             pendingQuestion = word
             switch question {
             case let .spacing(respaced):
+                pendingQuestionText = "spacing: \(respaced)"
                 return .askSpacing(SpacingQuestion(typed: word.screenText, respaced: respaced, textBefore: recentText))
             case let .language(ruleReading):
+                pendingQuestionText = "language: \(ruleReading)"
                 return .askLanguage(LanguageQuestion(
                     typed: word.screenText, ebiReading: word.reading(in: .ebi),
                     textBefore: recentText, ruleReading: ruleReading
@@ -262,18 +268,23 @@ public final class KeyEngine {
 
     /// Hands the word to azooKey, replaces it, or lets it pass, in `language` for its
     /// ambiguous parts. Keeps keys already held while a question was pending.
-    private func settle(_ word: Run, preferring language: Language? = nil, spacing: Spacing? = nil) -> KeyResponse {
+    private func settle(
+        _ word: Run, preferring language: Language? = nil, spacing: Spacing? = nil,
+        asked: (question: String?, answer: String?) = (nil, nil)
+    ) -> KeyResponse {
         switch planner.plan(word, preferring: language, spacing: spacing) {
         case .pass:
-            remember(word.screenText)
-            return .pass
+            return keepAsTyped(word, asked: asked)
         case let .convert(pieces):
             if heldKeys == nil { heldKeys = [] }
             if let handOff = planner.handOff(for: word, preferring: language, spacing: spacing) {
-                remember(Self.reading(of: handOff.settled) + handOff.romaji)
+                let reading = Self.reading(of: handOff.settled) + handOff.romaji
+                remember(reading)
+                record(word, asked: asked, outcome: "handed to azooKey: \(reading)")
                 return .handOff(handOff)
             }
             remember(Self.reading(of: pieces))
+            record(word, asked: asked, outcome: "replaced: \(Self.reading(of: pieces))")
             let replacement = Replacement(typed: word.screenText, pieces: pieces, suffix: " ")
             pendingReplacement = replacement
             // A Space conversion that could not go to azooKey (the word ends in English) is
@@ -281,6 +292,17 @@ public final class KeyEngine {
             pendingCorrectable = !pieces.contains { if case .romaji = $0 { true } else { false } }
             return .replace(replacement)
         }
+    }
+
+    /// The word stays as typed; the Space that ended it passes (or is typed back after a question).
+    private func keepAsTyped(_ word: Run, asked: (question: String?, answer: String?)) -> KeyResponse {
+        remember(word.screenText)
+        record(word, asked: asked, outcome: "as typed")
+        return .pass
+    }
+
+    private func record(_ word: Run, asked: (question: String?, answer: String?), outcome: String) {
+        recordWord?(WordRecord(typed: word.screenText, question: asked.question, answer: asked.answer, outcome: outcome))
     }
 
     /// Adds a finished word to the context, keeping the most recent characters.
@@ -305,9 +327,13 @@ public final class KeyEngine {
         run = Run()
         switch decision {
         case .pass:
+            if !typed.isEmpty {
+                record(runBeforeReset, asked: (nil, nil), outcome: "as typed")
+            }
             return .pass
         case let .convert(pieces):
             heldKeys = []
+            record(runBeforeReset, asked: (nil, nil), outcome: "replaced: \(Self.reading(of: pieces))")
             if handsOffToAzooKey, let handOff = planner.handOff(for: runBeforeReset) {
                 return .handOff(handOff)
             }

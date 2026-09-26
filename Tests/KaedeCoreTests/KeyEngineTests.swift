@@ -362,4 +362,30 @@ import Testing
         )))
         #expect(engine.answerLanguage(.english) == .rewrite(deleteCount: 0, text: " "))
     }
+
+    // MARK: Recording settled words
+
+    @Test func recordsEachSettledWordWithItsQuestionAnswerAndOutcome() {
+        var records: [WordRecord] = []
+        wordsEngine.recordWord = { records.append($0) }
+
+        wordsEngine.type("the")
+        _ = wordsEngine.handle(space)
+        wordsEngine.type("jajsd/a")
+        _ = wordsEngine.handle(space)
+        _ = wordsEngine.finishHandOff()
+        wordsEngine.type("are")
+        _ = wordsEngine.handle(space)
+        _ = wordsEngine.answerLanguage(.english)
+        _ = wordsEngine.finishRewrite()
+        wordsEngine.type("jajsd/a")
+        _ = wordsEngine.handle(.enter)
+
+        #expect(records == [
+            WordRecord(typed: "the", question: nil, answer: nil, outcome: "as typed"),
+            WordRecord(typed: "jajsd/a", question: nil, answer: nil, outcome: "handed to azooKey: tatoeba"),
+            WordRecord(typed: "are", question: "language: are (English)", answer: "english", outcome: "as typed"),
+            WordRecord(typed: "jajsd/a", question: nil, answer: nil, outcome: "replaced: tatoeba"),
+        ])
+    }
 }
