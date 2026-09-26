@@ -28,6 +28,11 @@ let package = Package(
             name: "Kaede",
             dependencies: ["KaedeCore", "KaedeConverter"]
         ),
+        // 変換方式を同じ例文で比べる開発用のコマンド（just eval）。
+        .executableTarget(
+            name: "KaedeEval",
+            dependencies: ["KaedeCore", "KaedeConverter"]
+        ),
         // KaedeCore のユニットテスト（swift test で実行）。
         .testTarget(
             name: "KaedeCoreTests",

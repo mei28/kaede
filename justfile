@@ -37,6 +37,10 @@ bundle:
 run: bundle
     open dist/Kaede.app
 
+# 変換方式を Evaluation/corpus.tsv の例文で比べる（方式: rules）
+eval method:
+    swift run -c release KaedeEval {{method}}
+
 # 起動中の Kaede を止める（メニューも Dock アイコンもないため）
 stop:
     pkill -x Kaede || echo "Kaede は起動していません"

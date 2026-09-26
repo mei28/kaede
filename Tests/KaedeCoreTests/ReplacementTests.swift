@@ -28,4 +28,13 @@ private struct Unconvertible: Error {}
             try replacement.text(using: converter)
         }
     }
+
+    @Test func rulesLineConverterConvertsWhatThePlannerConvertsAndKeepsTheRest() throws {
+        let rules = RulesLineConverter(
+            planner: EnterPlanner(lexicon: EnglishLexicon(wordList: "api\n")),
+            converter: DictionaryConverter(table: ["tatoeba": "例えば"])
+        )
+        #expect(try rules.convert("api jajsd/a") == "api 例えば")
+        #expect(try rules.convert("api") == "api")
+    }
 }
