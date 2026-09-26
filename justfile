@@ -41,7 +41,7 @@ stop:
 
 # Kaede のログを流し続ける（打った文字は伏せ字になる）
 logs:
-    log stream --level info --predicate 'subsystem == "com.mei28.kaede"'
+    log stream --level debug --predicate 'subsystem == "com.mei28.kaede"'
 
 # ビルド成果物を掃除
 clean:

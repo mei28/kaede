@@ -54,16 +54,26 @@ final class EventTap {
 
     private func handleKeyDown(_ event: CGEvent) -> Bool {
         let key = CGEventBridge.rawKey(from: event)
-        if !key.isKaedeEvent, SecureInput.isEnabled || !InputSourceGuard.isRomanSelected() {
+        log.debug("keyDown received (Kaede's own: \(key.isKaedeEvent, privacy: .public))")
+        if !key.isKaedeEvent, SecureInput.isEnabled {
+            log.info("Skipped: secure input is on.")
             engine.discardRun()
             return true
         }
+        if !key.isKaedeEvent, !InputSourceGuard.isRomanSelected() {
+            log.info("Skipped: input source is \(InputSourceGuard.currentID() ?? "unknown", privacy: .public).")
+            engine.discardRun()
+            return true
+        }
+        let isEnter = key.keyCode == 36 || key.keyCode == 76
         switch engine.handle(key) {
         case .pass:
+            if isEnter { log.info("Enter passed through.") }
             return true
         case .suppress:
             return false
         case let .replace(replacement):
+            log.info("Enter converts: deleting \(replacement.deleteCount, privacy: .public) characters.")
             // Replace after the callback returns, so the tap is not held up by the conversion.
             DispatchQueue.main.async { self.replace(replacement) }
             return false
@@ -75,6 +85,7 @@ final class EventTap {
             let text = try replacement.text(using: converter)
             poster.deleteBackward(replacement.deleteCount)
             poster.type(text)
+            log.info("Replaced with \(text.count, privacy: .public) characters.")
         } catch {
             // The swallowed Enter is not sent: the run stays on screen as typed.
             log.error("Conversion failed: \(error)")
