@@ -137,4 +137,23 @@ import Testing
         #expect(alternatives.contains([.romaji("tatoeba"), .verbatim(" "), .romaji("watashinoiisoutekiniha")]))
         #expect(Set(alternatives.map { "\($0)" }).count == alternatives.count)
     }
+
+    @Test func handOffKeepsTheTypedTextOfTheLastJapanesePart() {
+        let planner = EnterPlanner(lexicon: EnglishLexicon(wordList: "api\nqwerty\n"))
+        #expect(planner.handOff(for: Run(typing: "api;a,amajd")) == HandOff(
+            typed: "api;a,amajd", settled: [.verbatim("api")], romaji: "hamadate", typedTail: ";a,amajd"
+        ))
+        #expect(planner.handOff(for: Run(typing: "kf;skknsqwertyjs")) == HandOff(
+            typed: "kf;skknsqwertyjs", settled: [.romaji("nihonngo"), .verbatim("qwerty")], romaji: "to", typedTail: "js"
+        ))
+        // QWERTY "watashino" and Ebi "risoutekiniha" join into the one part handed off
+        #expect(planner.handOff(for: Run(typing: "watashinoiflsgjdhfkf;a")) == HandOff(
+            typed: "watashinoiflsgjdhfkf;a", settled: [], romaji: "watashinorisoutekiniha", typedTail: "watashinoiflsgjdhfkf;a"
+        ))
+    }
+
+    @Test func noHandOffWhenTheRunDoesNotEndInJapanese() {
+        #expect(planner.handOff(for: Run(typing: "jajsd/athe")) == nil)
+        #expect(planner.handOff(for: Run(typing: "the cat")) == nil)
+    }
 }

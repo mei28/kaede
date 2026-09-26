@@ -123,12 +123,9 @@ import Testing
         #expect(engine.finishReplacement(candidates: []).isEmpty)
     }
 
-    @Test func spaceAfterAConvertingWordReplacesItAndTypesTheSpaceAfterIt() {
+    @Test func spaceAfterAWordEndingInJapaneseHandsItToAzooKey() {
         engine.type("jajsd/a")
-        let space = RawKey(keyCode: 49, character: " ")
-        // Typed with the replacement rather than replayed: a replayed space would pick the next candidate
-        #expect(engine.handle(space) == .replace(Replacement(typed: "jajsd/a", pieces: [.romaji("tatoeba")], suffix: " ")))
-        #expect(engine.finishReplacement(candidates: ["例えば"]).isEmpty)
+        #expect(engine.handle(RawKey(keyCode: 49, character: " ")) == .handOff(HandOff(typed: "jajsd/a", settled: [], romaji: "tatoeba", typedTail: "jajsd/a")))
     }
 
     @Test func spaceAfterAPassingWordPassesAndStartsANewRun() {
@@ -150,30 +147,30 @@ import Testing
     let space = RawKey(keyCode: 49, character: " ")
     let shiftSpace = RawKey(keyCode: 49, character: " ", shift: true)
 
-    /// Converts "jajsd/a" with a space and offers the candidates, leaving "例えば " on screen.
+    /// Converts "jajsd/a" with Enter and offers the candidates, leaving "例えば" on screen.
     func convertTatoeba(candidates: [String] = ["例えば", "たとえば", "喩えば"]) {
         engine.type("jajsd/a")
-        _ = engine.handle(space)
+        _ = engine.handle(.enter)
         _ = engine.finishReplacement(candidates: candidates)
     }
 
     @Test func spaceStepsToTheNextCandidateAndShiftSpaceBackWrappingAround() {
         convertTatoeba()
-        #expect(engine.handle(space) == .rewrite(deleteCount: 4, text: "たとえば "))
+        #expect(engine.handle(space) == .rewrite(deleteCount: 3, text: "たとえば"))
         #expect(engine.finishRewrite().isEmpty)
-        #expect(engine.handle(space) == .rewrite(deleteCount: 5, text: "喩えば "))
+        #expect(engine.handle(space) == .rewrite(deleteCount: 4, text: "喩えば"))
         _ = engine.finishRewrite()
-        #expect(engine.handle(space) == .rewrite(deleteCount: 4, text: "例えば "))
+        #expect(engine.handle(space) == .rewrite(deleteCount: 3, text: "例えば"))
         _ = engine.finishRewrite()
-        #expect(engine.handle(shiftSpace) == .rewrite(deleteCount: 4, text: "喩えば "))
+        #expect(engine.handle(shiftSpace) == .rewrite(deleteCount: 3, text: "喩えば"))
     }
 
     @Test func escapeRestoresTheTypedTextAndEndsCorrecting() {
         convertTatoeba()
         _ = engine.handle(space)
         _ = engine.finishRewrite()
-        // "たとえば " is on screen
-        #expect(engine.handle(RawKey(keyCode: 53, character: "\u{1B}")) == .rewrite(deleteCount: 5, text: "jajsd/a "))
+        // "たとえば" is on screen
+        #expect(engine.handle(RawKey(keyCode: 53, character: "\u{1B}")) == .rewrite(deleteCount: 4, text: "jajsd/a"))
         _ = engine.finishRewrite()
         #expect(engine.handle(space) == .pass)
     }
@@ -210,10 +207,95 @@ import Testing
         #expect(engine.finishRewrite() == [typedDuring])
     }
 
-    @Test func aConversionByEnterCanBeSteppedThroughWithoutASuffix() {
+    @Test func aSpaceConversionOfAWordEndingInEnglishOffersNoCorrection() {
+        engine.type("jajsd/athe")
+        #expect(engine.handle(space) == .replace(Replacement(
+            typed: "jajsd/athe", pieces: [.romaji("tatoeba"), .verbatim("the")], suffix: " "
+        )))
+        _ = engine.finishReplacement(candidates: ["例えばthe", "たとえばthe"])
+        #expect(engine.handle(space) == .pass)
+    }
+
+    // MARK: Handing Japanese to azooKey
+
+    let englishEngine = KeyEngine(planner: EnterPlanner(lexicon: EnglishLexicon(wordList: "api\nqwerty\n")))
+
+    @Test func handingOffSettlesTheEnglishBeforeTheJapanese() {
+        englishEngine.type("api;a,amajd")
+        #expect(englishEngine.handle(space) == .handOff(HandOff(
+            typed: "api;a,amajd", settled: [.verbatim("api")], romaji: "hamadate", typedTail: ";a,amajd"
+        )))
+    }
+
+    @Test func handingOffSettlesEveryJapanesePartButTheLast() {
+        // Ebi "nihonngo", QWERTY "qwerty", Ebi "to" in one word
+        englishEngine.type("kf;skknsqwertyjs")
+        #expect(englishEngine.handle(space) == .handOff(HandOff(
+            typed: "kf;skknsqwertyjs", settled: [.romaji("nihonngo"), .verbatim("qwerty")], romaji: "to", typedTail: "js"
+        )))
+    }
+
+    /// Hands "jajsd/a" to azooKey; `succeeded` is whether switching to azooKey worked.
+    func handOffTatoeba(succeeded: Bool = true) {
         engine.type("jajsd/a")
-        _ = engine.handle(.enter)
-        _ = engine.finishReplacement(candidates: ["例えば", "たとえば"])
-        #expect(engine.handle(space) == .rewrite(deleteCount: 3, text: "たとえば"))
+        _ = engine.handle(space)
+        _ = engine.finishHandOff(succeeded: succeeded)
+    }
+
+    @Test func keysPressedDuringAHandOffAreHeldAndReturned() {
+        engine.type("jajsd/a")
+        _ = engine.handle(space)
+        let typedDuring = RawKey(keyCode: 0x00, character: "a")
+        #expect(engine.handle(typedDuring) == .suppress)
+        #expect(engine.finishHandOff(succeeded: true) == [typedDuring])
+    }
+
+    @Test(arguments: [
+        RawKey(keyCode: 49, character: " "),
+        RawKey(keyCode: 49, character: " ", shift: true),
+        RawKey(keyCode: 125, character: nil),  // down arrow
+        RawKey(keyCode: 123, character: nil),  // left arrow
+        RawKey(keyCode: 51, character: "\u{8}"),  // backspace
+        RawKey(keyCode: 53, character: "\u{1B}"),  // escape
+    ])
+    func azooKeysOwnKeysPassWhileItHoldsTheWord(key: RawKey) {
+        handOffTatoeba()
+        #expect(engine.handle(key) == .pass)
+        #expect(engine.handle(key) == .pass)  // still with azooKey
+    }
+
+    @Test func enterSettlesTheWordInAzooKeyWithoutTypingItself() {
+        handOffTatoeba()
+        #expect(engine.handle(.enter) == .settle(replay: nil))
+        #expect(engine.finishSettle().isEmpty)
+        #expect(engine.handle(space) == .pass)  // back to English, nothing to convert
+    }
+
+    @Test func anotherKeySettlesTheWordAndIsTypedAgainInEnglish() {
+        handOffTatoeba()
+        let next = RawKey(keyCode: 0x00, character: "a")
+        #expect(engine.handle(next) == .settle(replay: next))
+        let typedDuring = RawKey(keyCode: 0x01, character: "s")
+        #expect(engine.handle(typedDuring) == .suppress)
+        #expect(engine.finishSettle() == [typedDuring])
+    }
+
+    @Test func aFailedSwitchLeavesTheEngineInEnglish() {
+        handOffTatoeba(succeeded: false)
+        #expect(engine.handle(space) == .pass)
+    }
+
+    @Test func leavingAzooKeyByOtherMeansEndsTheHandOff() {
+        handOffTatoeba()
+        engine.azooKeyWasLeft()
+        #expect(engine.handle(RawKey(keyCode: 0x00, character: "a")) == .pass)
+        #expect(engine.run.elements == [.stroke(.a, shift: false)])
+    }
+
+    @Test func aClickOrAppSwitchEndsTheHandOff() {
+        handOffTatoeba()
+        #expect(engine.isWithAzooKey)
+        engine.discardRun()
+        #expect(!engine.isWithAzooKey)
     }
 }

@@ -15,6 +15,9 @@ enum Startup {
         if !InputSourceGuard.isRomanEnabled() {
             terminate("The input source \(InputSourceGuard.romanID) is not enabled.")
         }
+        if !InputSourceSwitcher.isEnabled(InputSourceSwitcher.azooKeyID) {
+            terminate("The input source \(InputSourceSwitcher.azooKeyID) (azooKey) is not enabled.")
+        }
         if !FileManager.default.fileExists(atPath: dictionaryDirectory.path(percentEncoded: false)) {
             terminate("The conversion dictionary is missing at \(dictionaryDirectory.path(percentEncoded: false)). Build the app with `just bundle`.")
         }

@@ -34,6 +34,8 @@ enum KeyCode {
     static let backspace: UInt16 = 51
     static let space: UInt16 = 49
     static let escape: UInt16 = 53
+    /// Keys azooKey uses on the word it holds: step through candidates, move, edit, cancel.
+    static let azooKeysOwn: Set<UInt16> = [space, backspace, escape, 123, 124, 125, 126]
     /// Return and keypad Enter.
     static let enter: Set<UInt16> = [36, 76]
     /// Keys that move the caret or leave the text: Tab, Escape, and the four arrows.
@@ -49,6 +51,11 @@ public enum KeyResponse: Equatable, Sendable {
     case replace(Replacement)
     /// Suppress the event, delete `deleteCount` characters before the caret and type `text`.
     case rewrite(deleteCount: Int, text: String)
+    /// Suppress the event and hand the run's last Japanese part to azooKey.
+    case handOff(HandOff)
+    /// Suppress the event, commit the word azooKey holds, switch back to English, and type
+    /// `replay` again (nil for Enter, which only commits).
+    case settle(replay: RawKey?)
 }
 
 /// Tracks the run and decides, per event, what the tap does. Runs on the tap's thread only.
@@ -60,6 +67,10 @@ public final class KeyEngine {
     private var heldKeys: [RawKey]?
     /// The replacement being typed, until its candidates arrive.
     private var pendingReplacement: Replacement?
+    /// Whether the user may step through the pending replacement's candidates afterwards.
+    private var pendingCorrectable = false
+    /// Whether azooKey holds a handed-off word; its own keys go to it until the word settles.
+    public private(set) var isWithAzooKey = false
     /// The last conversion, while the user can still step through its candidates.
     private var correction: Correction?
 
@@ -71,6 +82,7 @@ public final class KeyEngine {
     public func discardRun() {
         run = Run()
         correction = nil
+        isWithAzooKey = false
     }
 
     public func handle(_ key: RawKey) -> KeyResponse {
@@ -81,6 +93,14 @@ public final class KeyEngine {
             heldKeys?.append(key)
             return .suppress
         }
+        if isWithAzooKey {
+            if KeyCode.azooKeysOwn.contains(key.keyCode), !key.command, !key.control, !key.option {
+                return .pass
+            }
+            isWithAzooKey = false
+            heldKeys = []
+            return .settle(replay: KeyCode.enter.contains(key.keyCode) ? nil : key)
+        }
         if let correction {
             if let response = correct(correction, with: key) {
                 return response
@@ -89,11 +109,13 @@ public final class KeyEngine {
             self.correction = nil
         }
         if KeyCode.enter.contains(key.keyCode) {
-            return endRun(suffix: "")
+            // Enter converts and commits at once; the user can still step through candidates
+            return endRun(suffix: "", handsOffToAzooKey: false)
         }
         if key.keyCode == KeyCode.space, !key.command, !key.control, !key.option {
-            // Words never share a segment across a space, so the word before it can convert now
-            return endRun(suffix: " ")
+            // Words never share a segment across a space, so the word before it can convert now.
+            // This is the one place that decides when Japanese goes to azooKey.
+            return endRun(suffix: " ", handsOffToAzooKey: true)
         }
         record(key)
         return .pass
@@ -108,10 +130,29 @@ public final class KeyEngine {
             preconditionFailure("finishReplacement called with no replacement in progress")
         }
         pendingReplacement = nil
-        if !candidates.isEmpty {
+        if pendingCorrectable, !candidates.isEmpty {
             correction = Correction(typed: replacement.typed, suffix: replacement.suffix, candidates: candidates, index: 0)
         }
         return releaseHeldKeys()
+    }
+
+    /// Ends a hand-off and returns the keys held meanwhile. When switching to azooKey worked,
+    /// azooKey holds the word until a key other than its own settles it.
+    public func finishHandOff(succeeded: Bool) -> [RawKey] {
+        isWithAzooKey = succeeded
+        return releaseHeldKeys()
+    }
+
+    /// Ends settling a word in azooKey (the input source is English again) and returns the
+    /// keys held meanwhile.
+    public func finishSettle() -> [RawKey] {
+        releaseHeldKeys()
+    }
+
+    /// The input source left azooKey by other means (Hammerspoon on Escape, the user), so
+    /// azooKey no longer holds a handed-off word.
+    public func azooKeyWasLeft() {
+        isWithAzooKey = false
     }
 
     /// Ends a rewrite and returns the keys held meanwhile.
@@ -167,17 +208,24 @@ public final class KeyEngine {
 
     /// Plans the run and starts a new one. When the run converts, the key that ended it is
     /// suppressed, and `suffix` is what it would have typed after the converted text.
-    private func endRun(suffix: String) -> KeyResponse {
+    private func endRun(suffix: String, handsOffToAzooKey: Bool) -> KeyResponse {
         let decision = planner.plan(run)
         let typed = run.screenText
+        let runBeforeReset = run
         run = Run()
         switch decision {
         case .pass:
             return .pass
         case let .convert(pieces):
             heldKeys = []
+            if handsOffToAzooKey, let handOff = planner.handOff(for: runBeforeReset) {
+                return .handOff(handOff)
+            }
             let replacement = Replacement(typed: typed, pieces: pieces, suffix: suffix)
             pendingReplacement = replacement
+            // Only a conversion by Enter can be stepped through; a Space conversion that could not
+            // go to azooKey (the word ends in English) is committed as is
+            pendingCorrectable = !handsOffToAzooKey
             return .replace(replacement)
         }
     }

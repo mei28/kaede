@@ -13,7 +13,7 @@ public enum KeyPosition: CaseIterable, Sendable {
     }
 
     /// macOS virtual key code (same values as dotfiles `.hammerspoon/keyLayout.lua`).
-    var keyCode: UInt16 {
+    public var keyCode: UInt16 {
         switch self {
         case .q: 0x0c
         case .w: 0x0d

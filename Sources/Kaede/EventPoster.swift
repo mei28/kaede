@@ -39,6 +39,22 @@ struct EventPoster {
         }
     }
 
+    /// Presses the QWERTY keys that spell `romaji` (letters, "," and "."), marked, so an input
+    /// method such as azooKey reads them as typed romaji.
+    func typeKeys(_ romaji: String) {
+        for character in romaji {
+            guard let position = KeyPosition.allCases.first(where: { Layout.qwerty.character(at: $0, shift: false) == character }) else {
+                preconditionFailure("romaji holds a character outside the 30 layout keys: \(character)")
+            }
+            postKey(CGKeyCode(position.keyCode), flags: [], source: markedSource)
+        }
+    }
+
+    /// Presses a key by code, marked (Space to convert in azooKey, Return to commit).
+    func press(_ keyCode: UInt16) {
+        postKey(CGKeyCode(keyCode), flags: [], source: markedSource)
+    }
+
     /// Posts a held key again, unmarked, so the tap handles it as fresh input.
     func replay(_ key: RawKey) {
         postKey(CGKeyCode(key.keyCode), flags: CGEventBridge.flags(of: key), source: nil)

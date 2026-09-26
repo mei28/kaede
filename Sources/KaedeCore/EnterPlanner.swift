@@ -65,6 +65,37 @@ public struct EnterPlanner: Sendable {
         return alternatives
     }
 
+    /// How to hand the run to azooKey: everything before its last Japanese part is settled, and
+    /// that part (consecutive Japanese segments, whatever their layout) goes to azooKey.
+    /// Nil when the run does not end in Japanese, or is too short to convert.
+    public func handOff(for run: Run) -> HandOff? {
+        guard run.strokeCount >= Self.minimumStrokes else { return nil }
+        let items = Self.items(of: run)
+        var segments: [[Segment]] = items.map { item in
+            if case let .token(token) = item { segmentsOrAsTyped(token) } else { [] }
+        }
+        guard case .token = items.last, let last = segments.indices.last else { return nil }
+        let tailCount = segments[last].reversed().prefix { $0.kind.isJapanese }.count
+        guard tailCount > 0 else { return nil }
+        let tail = segments[last].suffix(tailCount)
+        segments[last].removeLast(tailCount)
+        var romaji: [ConversionPiece] = []
+        for segment in tail {
+            romaji.appendRomaji(segment.text)
+        }
+        guard case let .romaji(text) = romaji.first else {
+            preconditionFailure("Japanese segments always assemble into one romaji piece")
+        }
+        let typed = run.screenText
+        return HandOff(
+            typed: typed,
+            settled: Self.assemble(items: items, segments: segments).pieces,
+            romaji: text,
+            // One screen character per key, so the tail's length in keys is its segments' length
+            typedTail: String(typed.suffix(tail.map(\.text.count).reduce(0, +)))
+        )
+    }
+
     /// A token nothing can read stays as typed.
     private func segmentsOrAsTyped(_ token: Token) -> [Segment] {
         segmenter.segments(of: token) ?? [Segment(kind: .qwertyEnglish, text: token.qwerty)]
