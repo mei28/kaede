@@ -22,4 +22,16 @@ import Testing
     func doesNotSplitOneWordOrUnknownLetters(letters: String) {
         #expect(splitter.split(letters) == nil)
     }
+
+    @Test func keepsAnUncommonPartAsItsOwnWord() {
+        // "expl" is a word still being typed; the rest are common words
+        #expect(splitter.split("explanationisallyouneedbuttheexpl") == [
+            "explanation", "is", "all", "you", "need", "but", "the", "expl",
+        ])
+    }
+
+    @Test func doesNotSplitWhenCommonWordsCoverTooLittle() {
+        // "api" then Ebi-fingered kone: mostly not English
+        #expect(splitter.split("apihskd") == nil)
+    }
 }
