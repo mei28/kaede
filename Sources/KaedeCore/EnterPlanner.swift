@@ -29,6 +29,12 @@ public enum Language: Sendable {
     case english
 }
 
+/// Whether English typed without spaces is respaced.
+public enum Spacing: Sendable {
+    case respace
+    case keepAsTyped
+}
+
 public struct EnterPlanner: Sendable {
     /// Too few strokes to tell Japanese from a stray key.
     static let minimumStrokes = 3
@@ -43,13 +49,14 @@ public struct EnterPlanner: Sendable {
         splitter = commonWords.map(EnglishSplitter.init(commonWords:))
     }
 
-    /// With a preference, ambiguous words (see `isAmbiguous`) are read in that language.
-    public func plan(_ run: Run, preferring language: Language? = nil) -> EnterDecision {
+    /// With answers to `question(for:)`: a language settles words with a language question,
+    /// spacing settles English typed without spaces. Without them the rules decide.
+    public func plan(_ run: Run, preferring language: Language? = nil, spacing: Spacing? = nil) -> EnterDecision {
         if run.strokeCount < Self.minimumStrokes {
             return .pass
         }
         let items = Self.items(of: run)
-        return Self.decision(items: items, segments: segments(of: items, preferring: language))
+        return Self.decision(items: items, segments: segments(of: items, preferring: language, spacing: spacing))
     }
 
     /// Distinct plans for a run that converts: the plan itself first, then plans that differ from
@@ -70,10 +77,10 @@ public struct EnterPlanner: Sendable {
     /// How to hand the run to azooKey: everything before its last Japanese part is settled, and
     /// that part (consecutive Japanese segments, whatever their layout) goes to azooKey.
     /// Nil when the run does not end in Japanese, or is too short to convert.
-    public func handOff(for run: Run, preferring language: Language? = nil) -> HandOff? {
+    public func handOff(for run: Run, preferring language: Language? = nil, spacing: Spacing? = nil) -> HandOff? {
         guard run.strokeCount >= Self.minimumStrokes else { return nil }
         let items = Self.items(of: run)
-        var segments = segments(of: items, preferring: language)
+        var segments = segments(of: items, preferring: language, spacing: spacing)
         guard case .token = items.last, let last = segments.indices.last else { return nil }
         let tailCount = segments[last].reversed().prefix { $0.kind.isJapanese }.count
         guard tailCount > 0 else { return nil }
@@ -142,20 +149,32 @@ public struct EnterPlanner: Sendable {
             && (RomajiParser.isRomaji(token.qwerty) || RomajiParser.isRomaji(token.ebi))
     }
 
-    /// The best segments, except that ambiguous words follow `language`: English keeps them as
-    /// typed; Japanese reads them whole as romaji, in QWERTY when the letters on screen already
-    /// are romaji, otherwise in Ebi.
-    private func segments(of items: [RunItem], preferring language: Language?) -> [[Segment]] {
-        guard let language else { return bestSegments(of: items) }
-        return zip(items, bestSegments(of: items)).map { item, best in
-            guard case let .token(token) = item, isAmbiguous(token) else { return best }
+    /// The best segments, except where an answer settles a doubtful word:
+    /// - `spacing` keeps English typed without spaces as typed, or respaces it (the rules' way);
+    /// - `language` English keeps a word with a language question as typed; Japanese reads a
+    ///   whole-word ambiguity ("are") whole as romaji, in QWERTY when the letters already are
+    ///   romaji, otherwise in Ebi, and keeps the rules' reading for the other doubtful words.
+    private func segments(of items: [RunItem], preferring language: Language?, spacing: Spacing?) -> [[Segment]] {
+        zip(items, bestSegments(of: items)).map { item, best in
+            guard case let .token(token) = item else { return best }
+            let asTyped = [Segment(kind: .qwertyEnglish, text: token.qwerty)]
+            if respaced(token) != nil {
+                return spacing == .keepAsTyped ? asTyped : best
+            }
+            let hasJapanese = best.contains { $0.kind.isJapanese }
+            let hasEnglish = best.contains { !$0.kind.isJapanese }
+            guard let language, isAmbiguous(token) || isUnknownQwertyRomaji(token) || (hasJapanese && hasEnglish) else {
+                return best
+            }
             switch language {
             case .english:
-                return [Segment(kind: .qwertyEnglish, text: token.qwerty)]
-            case .japanese:
+                return asTyped
+            case .japanese where isAmbiguous(token):
                 return RomajiParser.isRomaji(token.qwerty)
                     ? [Segment(kind: .qwertyJapanese, text: token.qwerty)]
                     : [Segment(kind: .ebiJapanese, text: token.ebi)]
+            case .japanese:
+                return best
             }
         }
     }

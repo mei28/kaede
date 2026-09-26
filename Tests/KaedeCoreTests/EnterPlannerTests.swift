@@ -236,4 +236,25 @@ import Testing
         // Ebi-fingered Japanese, and known English that does not read as romaji
         #expect(try respacingPlanner().question(for: Run(typing: typed)) == nil)
     }
+
+    // MARK: Following Jev's answers
+
+    @Test(arguments: [
+        ("watashino", EnterDecision.pass, EnterDecision.convert([.romaji("watashino")])),
+        ("api;a,amajd", EnterDecision.pass, EnterDecision.convert([.verbatim("api"), .romaji("hamadate")])),
+    ])
+    func englishKeepsADoubtfulWordAsTypedAndJapaneseKeepsTheRulesReading(
+        typed: String, english: EnterDecision, japanese: EnterDecision
+    ) throws {
+        let planner = try respacingPlanner()
+        #expect(planner.plan(Run(typing: typed), preferring: .english) == english)
+        #expect(planner.plan(Run(typing: typed), preferring: .japanese) == japanese)
+    }
+
+    @Test func spacingAnswersDecideWhetherToRespace() throws {
+        let planner = try respacingPlanner()
+        #expect(planner.plan(Run(typing: "localhost"), spacing: .keepAsTyped) == .pass)
+        #expect(planner.plan(Run(typing: "localhost"), spacing: .respace) == .convert([.verbatim("local host")]))
+        #expect(planner.plan(Run(typing: "localhost")) == .convert([.verbatim("local host")]))
+    }
 }
