@@ -235,11 +235,11 @@ import Testing
         )))
     }
 
-    /// Hands "jajsd/a" to azooKey; `succeeded` is whether switching to azooKey worked.
-    func handOffTatoeba(succeeded: Bool = true) {
+    /// Hands "jajsd/a" to azooKey.
+    func handOffTatoeba() {
         engine.type("jajsd/a")
         _ = engine.handle(space)
-        _ = engine.finishHandOff(succeeded: succeeded)
+        _ = engine.finishHandOff()
     }
 
     @Test func keysPressedDuringAHandOffAreHeldAndReturned() {
@@ -247,55 +247,14 @@ import Testing
         _ = engine.handle(space)
         let typedDuring = RawKey(keyCode: 0x00, character: "a")
         #expect(engine.handle(typedDuring) == .suppress)
-        #expect(engine.finishHandOff(succeeded: true) == [typedDuring])
+        #expect(engine.finishHandOff() == [typedDuring])
     }
 
-    @Test(arguments: [
-        RawKey(keyCode: 49, character: " "),
-        RawKey(keyCode: 49, character: " ", shift: true),
-        RawKey(keyCode: 125, character: nil),  // down arrow
-        RawKey(keyCode: 123, character: nil),  // left arrow
-        RawKey(keyCode: 51, character: "\u{8}"),  // backspace
-        RawKey(keyCode: 53, character: "\u{1B}"),  // escape
-    ])
-    func azooKeysOwnKeysPassWhileItHoldsTheWord(key: RawKey) {
+    @Test func afterTheHandOffTheEngineLeavesEverythingToAzooKey() {
+        // While azooKey is the input source the tap skips keys; once the user is back in
+        // English, keys are handled as usual, with nothing left over from the hand-off
         handOffTatoeba()
-        #expect(engine.handle(key) == .pass)
-        #expect(engine.handle(key) == .pass)  // still with azooKey
-    }
-
-    @Test func enterSettlesTheWordInAzooKeyWithoutTypingItself() {
-        handOffTatoeba()
-        #expect(engine.handle(.enter) == .settle(replay: nil))
-        #expect(engine.finishSettle().isEmpty)
-        #expect(engine.handle(space) == .pass)  // back to English, nothing to convert
-    }
-
-    @Test func anotherKeySettlesTheWordAndIsTypedAgainInEnglish() {
-        handOffTatoeba()
-        let next = RawKey(keyCode: 0x00, character: "a")
-        #expect(engine.handle(next) == .settle(replay: next))
-        let typedDuring = RawKey(keyCode: 0x01, character: "s")
-        #expect(engine.handle(typedDuring) == .suppress)
-        #expect(engine.finishSettle() == [typedDuring])
-    }
-
-    @Test func aFailedSwitchLeavesTheEngineInEnglish() {
-        handOffTatoeba(succeeded: false)
-        #expect(engine.handle(space) == .pass)
-    }
-
-    @Test func leavingAzooKeyByOtherMeansEndsTheHandOff() {
-        handOffTatoeba()
-        engine.azooKeyWasLeft()
         #expect(engine.handle(RawKey(keyCode: 0x00, character: "a")) == .pass)
         #expect(engine.run.elements == [.stroke(.a, shift: false)])
-    }
-
-    @Test func aClickOrAppSwitchEndsTheHandOff() {
-        handOffTatoeba()
-        #expect(engine.isWithAzooKey)
-        engine.discardRun()
-        #expect(!engine.isWithAzooKey)
     }
 }

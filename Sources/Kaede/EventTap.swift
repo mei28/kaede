@@ -40,12 +40,7 @@ final class EventTap {
         CGEvent.tapEnable(tap: port, enable: true)
     }
 
-    /// A click or an app switch. When azooKey holds a handed-off word, it commits the word as
-    /// focus moves, and Kaede switches back to English.
     func discardRun() {
-        if engine.isWithAzooKey {
-            Task { _ = await InputSourceSwitcher.select(InputSourceGuard.romanID) }
-        }
         engine.discardRun()
     }
 
@@ -73,13 +68,9 @@ final class EventTap {
             engine.discardRun()
             return true
         }
-        if engine.isWithAzooKey, InputSourceGuard.currentID() != InputSourceSwitcher.azooKeyID {
-            // The user or Hammerspoon (on Escape) left azooKey, which committed its word
-            log.info("azooKey was left by other means.")
-            engine.azooKeyWasLeft()
-        }
-        // While azooKey holds a handed-off word, Kaede still watches keys to settle it
-        if !key.isKaedeEvent, !engine.isWithAzooKey, !InputSourceGuard.isRomanSelected() {
+        // After a hand-off azooKey is selected, so its keys pass untouched until the user
+        // switches back to English
+        if !key.isKaedeEvent, !InputSourceGuard.isRomanSelected() {
             log.info("Skipped: input source is \(InputSourceGuard.currentID() ?? "unknown", privacy: .public).")
             engine.discardRun()
             return true
@@ -108,10 +99,6 @@ final class EventTap {
         case let .handOff(handOff):
             log.info("Hands \(handOff.romaji.count, privacy: .public) romaji characters to azooKey.")
             Task { await self.handOff(handOff) }
-            return false
-        case let .settle(replay):
-            log.info("Settles the word in azooKey\(replay == nil ? "" : " and types the next key in English", privacy: .public).")
-            Task { await self.settle(replaying: replay) }
             return false
         case let .rewrite(deleteCount, text):
             log.info("Rewrites \(deleteCount, privacy: .public) characters with a candidate or the typed text.")
@@ -182,7 +169,7 @@ final class EventTap {
         poster.deleteBackward(handOff.typedTail.count)
         poster.typeKeys(handOff.romaji)
         poster.press(49)  // Space: azooKey converts and shows its candidates
-        for key in engine.finishHandOff(succeeded: true) {
+        for key in engine.finishHandOff() {
             poster.replay(key)
         }
     }
@@ -191,24 +178,7 @@ final class EventTap {
     private func failHandOff() {
         NSSound.beep()
         poster.type(" ")
-        for key in engine.finishHandOff(succeeded: false) {
-            poster.replay(key)
-        }
-    }
-
-    /// Commits the word azooKey holds, switches back to English, and types `replay` there.
-    private func settle(replaying replay: RawKey?) async {
-        poster.press(36)  // Return: azooKey commits its word
-        await InputSourceSwitcher.pause(InputSourceSwitcher.settleDelay)
-        if !(await InputSourceSwitcher.select(InputSourceGuard.romanID)) {
-            // azooKey stays selected, so the key lands in azooKey; typing it still beats losing it.
-            // Kaede skips keys until the user switches back.
-            NSSound.beep()
-        }
-        if let replay {
-            poster.replay(replay)
-        }
-        for key in engine.finishSettle() {
+        for key in engine.finishHandOff() {
             poster.replay(key)
         }
     }
