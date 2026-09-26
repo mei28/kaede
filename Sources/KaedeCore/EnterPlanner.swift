@@ -118,15 +118,19 @@ public struct EnterPlanner: Sendable {
                 return .spacing(respaced: respaced)
             }
             let segments = segmentsOrAsTyped(token)
-            let hasJapanese = segments.contains { $0.kind.isJapanese }
-            let hasEnglish = segments.contains { !$0.kind.isJapanese }
-            if isAmbiguous(token) || isUnknownQwertyRomaji(token) || (hasJapanese && hasEnglish) {
+            if isLanguageDoubtful(token, read: segments) {
                 return .language(ruleReading: segments.map { segment in
                     "\(segment.text) (\(segment.kind.isJapanese ? "Japanese romaji" : "English"))"
                 }.joined(separator: " + "))
             }
         }
         return nil
+    }
+
+    /// Whether the rules might have the token's language wrong, given how they read it.
+    private func isLanguageDoubtful(_ token: Token, read segments: [Segment]) -> Bool {
+        let mixed = segments.contains { $0.kind.isJapanese } && segments.contains { !$0.kind.isJapanese }
+        return isAmbiguous(token) || isUnknownQwertyRomaji(token) || mixed
     }
 
     private func isUnknownQwertyRomaji(_ token: Token) -> Bool {
@@ -161,9 +165,7 @@ public struct EnterPlanner: Sendable {
             if respaced(token) != nil {
                 return spacing == .keepAsTyped ? asTyped : best
             }
-            let hasJapanese = best.contains { $0.kind.isJapanese }
-            let hasEnglish = best.contains { !$0.kind.isJapanese }
-            guard let language, isAmbiguous(token) || isUnknownQwertyRomaji(token) || (hasJapanese && hasEnglish) else {
+            guard let language, isLanguageDoubtful(token, read: best) else {
                 return best
             }
             switch language {
