@@ -51,6 +51,9 @@ public enum KeyResponse: Equatable, Sendable {
     case rewrite(deleteCount: Int, text: String)
     /// Suppress the event and hand the run's last Japanese part to azooKey.
     case handOff(HandOff)
+    /// Suppress the event and ask whether the word is Japanese or English; pass the answer
+    /// to `answerLanguage(_:)`.
+    case askLanguage(LanguageQuestion)
 }
 
 /// Tracks the run and decides, per event, what the tap does. Runs on the tap's thread only.
@@ -64,17 +67,50 @@ public final class KeyEngine {
     private var pendingReplacement: Replacement?
     /// Whether the user may step through the pending replacement's candidates afterwards.
     private var pendingCorrectable = false
+    /// The ambiguous word waiting for its language.
+    private var pendingQuestion: Run?
+    /// Words recently finished in this field, as Kaede read them: context for questions.
+    private var recentText = ""
+    /// jev-auto-ime sends the last 240 characters before the caret.
+    static let recentTextLimit = 240
     /// The last conversion, while the user can still step through its candidates.
     private var correction: Correction?
 
-    public init(planner: EnterPlanner) {
+    /// Whether ambiguous words are asked about (Jev is set up); otherwise the rules settle them.
+    private let asksLanguage: Bool
+
+    public init(planner: EnterPlanner, asksLanguage: Bool = false) {
         self.planner = planner
+        self.asksLanguage = asksLanguage
     }
 
     /// The caret may have moved: a click or a switch to another app. Ends correcting too.
     public func discardRun() {
         run = Run()
         correction = nil
+        recentText = ""
+    }
+
+    /// Settles the word that `.askLanguage` asked about. The Space that ended it was suppressed,
+    /// so a word that stays as typed gets its Space typed back.
+    public func answerLanguage(_ answer: LanguageAnswer) -> KeyResponse {
+        guard let word = pendingQuestion else {
+            preconditionFailure("answerLanguage called with no question pending")
+        }
+        pendingQuestion = nil
+        let response: KeyResponse
+        switch answer {
+        case .failed:
+            remember(word.screenText)
+            response = .pass
+        case .japanese:
+            response = settle(word, preferring: .japanese)
+        case .english:
+            response = settle(word, preferring: .english)
+        case .undecided:
+            response = settle(word, preferring: nil)
+        }
+        return response == .pass ? .rewrite(deleteCount: 0, text: " ") : response
     }
 
     public func handle(_ key: RawKey) -> KeyResponse {
@@ -94,12 +130,13 @@ public final class KeyEngine {
         }
         if KeyCode.enter.contains(key.keyCode) {
             // Enter converts and commits at once; the user can still step through candidates
+            recentText = ""
             return endRun(suffix: "", handsOffToAzooKey: false)
         }
         if key.keyCode == KeyCode.space, !key.command, !key.control, !key.option {
             // Words never share a segment across a space, so the word before it can convert now.
             // This is the one place that decides when Japanese goes to azooKey.
-            return endRun(suffix: " ", handsOffToAzooKey: true)
+            return endWord()
         }
         record(key)
         return .pass
@@ -166,7 +203,9 @@ public final class KeyEngine {
         if key.keyCode == KeyCode.backspace {
             run.removeLast()
         } else if KeyCode.resettingRun.contains(key.keyCode) || key.command || key.control || key.option {
+            // The caret may have moved away from the recent words
             run = Run()
+            recentText = ""
         } else if let position = KeyPosition(keyCode: key.keyCode) {
             run.append(Self.isSymbolLayer(key, at: position)
                 ? .literal(Layout.qwerty.character(at: position, shift: true))
@@ -176,6 +215,56 @@ public final class KeyEngine {
         } else {
             run = Run()
         }
+    }
+
+    /// Ends the word at a Space: asks for the language of an ambiguous word, settles the rest.
+    private func endWord() -> KeyResponse {
+        let word = run
+        run = Run()
+        if asksLanguage, planner.isAmbiguous(word) {
+            heldKeys = []
+            pendingQuestion = word
+            return .askLanguage(LanguageQuestion(
+                typed: word.screenText, ebiReading: word.reading(in: .ebi), textBefore: recentText
+            ))
+        }
+        return settle(word, preferring: nil)
+    }
+
+    /// Hands the word to azooKey, replaces it, or lets it pass, in `language` for its
+    /// ambiguous parts. Keeps keys already held while a question was pending.
+    private func settle(_ word: Run, preferring language: Language?) -> KeyResponse {
+        switch planner.plan(word, preferring: language) {
+        case .pass:
+            remember(word.screenText)
+            return .pass
+        case let .convert(pieces):
+            if heldKeys == nil { heldKeys = [] }
+            if let handOff = planner.handOff(for: word, preferring: language) {
+                remember(Self.reading(of: handOff.settled) + handOff.romaji)
+                return .handOff(handOff)
+            }
+            remember(Self.reading(of: pieces))
+            let replacement = Replacement(typed: word.screenText, pieces: pieces, suffix: " ")
+            pendingReplacement = replacement
+            // A Space conversion that could not go to azooKey (the word ends in English) is
+            // committed as is; only a conversion by Enter can be stepped through
+            pendingCorrectable = false
+            return .replace(replacement)
+        }
+    }
+
+    /// Adds a finished word to the context, keeping the most recent characters.
+    private func remember(_ word: String) {
+        recentText = String((recentText + word + " ").suffix(Self.recentTextLimit))
+    }
+
+    private static func reading(of pieces: [ConversionPiece]) -> String {
+        pieces.map { piece in
+            switch piece {
+            case let .romaji(text), let .verbatim(text): text
+            }
+        }.joined()
     }
 
     /// Plans the run and starts a new one. When the run converts, the key that ended it is

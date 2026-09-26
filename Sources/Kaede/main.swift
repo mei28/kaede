@@ -1,6 +1,7 @@
 import AppKit
 import KaedeConverter
 import KaedeCore
+import KaedeRemote
 
 guard let resources = Bundle.main.resourceURL else {
     terminate("Kaede must run from its .app bundle (just run).")
@@ -17,12 +18,22 @@ do {
     terminate("Could not read the English word lists: \(error)")
 }
 
+// Jev settles ambiguous words when its key is stored; without it the rules do
+let jev: JevLanguageRequest?
+do {
+    jev = try Keychain.apiKey(named: "jev").map(JevLanguageRequest.init(apiKey:))
+} catch {
+    terminate("Could not read the Jev API key: \(error)")
+}
+log.notice("Jev is \(jev == nil ? "off (no key stored)" : "on", privacy: .public).")
+
 let tap = EventTap(
     planner: EnterPlanner(lexicon: lexicon),
     converter: AzooKeyConverter(
         dictionaryDirectory: dictionaryDirectory,
         memoryDirectory: FileManager.default.temporaryDirectory
-    )
+    ),
+    jev: jev
 )
 tap.start()
 

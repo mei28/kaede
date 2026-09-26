@@ -257,4 +257,52 @@ import Testing
         #expect(engine.handle(RawKey(keyCode: 0x00, character: "a")) == .pass)
         #expect(engine.run.elements == [.stroke(.a, shift: false)])
     }
+
+    // MARK: Asking the language of ambiguous words
+
+    let wordsEngine = KeyEngine(planner: EnterPlanner(lexicon: EnglishLexicon(wordList: "are\nthe\ncat\n")), asksLanguage: true)
+
+    @Test func withoutAskingTheRulesSettleAmbiguousWords() {
+        let engine = KeyEngine(planner: EnterPlanner(lexicon: EnglishLexicon(wordList: "are\n")))
+        engine.type("are")
+        #expect(engine.handle(space) == .pass)  // the rules read "are" as English
+    }
+
+    @Test func spaceAfterAnAmbiguousWordAsksItsLanguage() {
+        wordsEngine.type("are")
+        #expect(wordsEngine.handle(space) == .askLanguage(LanguageQuestion(typed: "are", ebiReading: "a.,", textBefore: "")))
+    }
+
+    @Test(arguments: [
+        (LanguageAnswer.english, KeyResponse.rewrite(deleteCount: 0, text: " ")),
+        (LanguageAnswer.undecided, KeyResponse.rewrite(deleteCount: 0, text: " ")),  // the rules read "are" as English
+        (LanguageAnswer.failed, KeyResponse.rewrite(deleteCount: 0, text: " ")),
+        (LanguageAnswer.japanese, KeyResponse.handOff(HandOff(typed: "are", settled: [], romaji: "are", typedTail: "are"))),
+    ])
+    func theAnswerDecidesWhatHappensToTheWord(answer: LanguageAnswer, response: KeyResponse) {
+        wordsEngine.type("are")
+        _ = wordsEngine.handle(space)
+        #expect(wordsEngine.answerLanguage(answer) == response)
+    }
+
+    @Test func keysPressedWhileAskingAreHeld() {
+        wordsEngine.type("are")
+        _ = wordsEngine.handle(space)
+        let typedDuring = RawKey(keyCode: 0x00, character: "a")
+        #expect(wordsEngine.handle(typedDuring) == .suppress)
+        _ = wordsEngine.answerLanguage(.english)
+        #expect(wordsEngine.finishRewrite() == [typedDuring])
+    }
+
+    @Test func theQuestionCarriesTheWordsBeforeItUntilTheCaretMoves() {
+        wordsEngine.type("the")
+        _ = wordsEngine.handle(space)
+        wordsEngine.type("are")
+        #expect(wordsEngine.handle(space) == .askLanguage(LanguageQuestion(typed: "are", ebiReading: "a.,", textBefore: "the ")))
+        _ = wordsEngine.answerLanguage(.english)
+        _ = wordsEngine.finishRewrite()
+        wordsEngine.discardRun()
+        wordsEngine.type("are")
+        #expect(wordsEngine.handle(space) == .askLanguage(LanguageQuestion(typed: "are", ebiReading: "a.,", textBefore: "")))
+    }
 }

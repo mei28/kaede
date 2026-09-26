@@ -40,6 +40,18 @@ func azooKey(zenzai: Bool) -> AzooKeyConverter {
     )
 }
 
+/// The stored key, or a stop with the hint to store it.
+func apiKey(named name: String) -> String {
+    do {
+        guard let key = try Keychain.apiKey(named: name) else {
+            fail("no \(name) API key in the keychain; store it with `just set-key \(name)`")
+        }
+        return key
+    } catch {
+        fail("could not read the \(name) API key: \(error)")
+    }
+}
+
 let converter: any LineConverting = switch method {
 case "rules": RulesLineConverter(planner: EnterPlanner(lexicon: lexicon), converter: azooKey(zenzai: false))
 case "zenzai": RulesLineConverter(planner: EnterPlanner(lexicon: lexicon), converter: azooKey(zenzai: true))
@@ -47,7 +59,7 @@ case "claude":
     // KAEDE_CLAUDE_MODEL and KAEDE_CLAUDE_EFFORT override the defaults for comparing settings
     ClaudeLineConverter(
         request: ClaudeRequest(
-            apiKey: Keychain.apiKey(named: "anthropic"),
+            apiKey: apiKey(named: "anthropic"),
             model: ProcessInfo.processInfo.environment["KAEDE_CLAUDE_MODEL"] ?? "claude-opus-5",
             effort: ProcessInfo.processInfo.environment["KAEDE_CLAUDE_EFFORT"] ?? "low"
         ),
@@ -56,7 +68,7 @@ case "claude":
     )
 case "jev":
     JevLineConverter(
-        request: JevRequest(apiKey: Keychain.apiKey(named: "jev")),
+        request: JevRequest(apiKey: apiKey(named: "jev")),
         planner: EnterPlanner(lexicon: lexicon),
         converter: azooKey(zenzai: true),
         transport: URLSessionTransport()

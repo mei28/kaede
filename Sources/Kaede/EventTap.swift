@@ -1,5 +1,6 @@
 import AppKit
 import KaedeCore
+import KaedeRemote
 
 /// The session event tap: feeds key and mouse events to the engine and carries out its decisions.
 @MainActor
@@ -8,6 +9,9 @@ final class EventTap {
     /// The engine's planner, reused to find other splits when building candidates.
     private let planner: EnterPlanner
     private let converter: any KanaKanjiConverting
+    /// Asks Jev about ambiguous words; nil when no Jev key is stored.
+    private let jev: JevLanguageRequest?
+    private let transport = URLSessionTransport()
     private let poster = EventPoster()
     private var machPort: CFMachPort?
 
@@ -15,11 +19,14 @@ final class EventTap {
     private static let candidateLimit = 8
     /// Splits tried per token for the candidates' other splits.
     private static let splitsPerToken = 3
+    /// No answer from Jev by then leaves the word as typed (spec, chapter 4).
+    nonisolated private static let languageTimeout: Duration = .seconds(2)
 
-    init(planner: EnterPlanner, converter: any KanaKanjiConverting) {
-        self.engine = KeyEngine(planner: planner)
+    init(planner: EnterPlanner, converter: any KanaKanjiConverting, jev: JevLanguageRequest?) {
+        self.engine = KeyEngine(planner: planner, asksLanguage: jev != nil)
         self.planner = planner
         self.converter = converter
+        self.jev = jev
     }
 
     func start() {
@@ -104,6 +111,10 @@ final class EventTap {
             log.info("Rewrites \(deleteCount, privacy: .public) characters with a candidate or the typed text.")
             DispatchQueue.main.async { self.rewrite(deleteCount: deleteCount, text: text) }
             return false
+        case let .askLanguage(question):
+            log.info("Asks Jev the language of an ambiguous word.")
+            Task { await self.ask(question) }
+            return false
         }
     }
 
@@ -180,6 +191,62 @@ final class EventTap {
         poster.type(" ")
         for key in engine.finishHandOff() {
             poster.replay(key)
+        }
+    }
+
+    /// Asks Jev, then carries out what the engine decides from the answer.
+    private func ask(_ question: LanguageQuestion) async {
+        guard let jev else {
+            preconditionFailure("the engine asks only when Jev is set up")
+        }
+        let application = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "unknown"
+        let request = jev.urlRequest(question: question, application: application)
+        let clock = ContinuousClock()
+        let started = clock.now
+        let answer = await languageAnswer(for: request)
+        log.info("Jev answered \(String(describing: answer), privacy: .public) in \(clock.now - started, privacy: .public).")
+        if answer == .failed {
+            NSSound.beep()
+        }
+        switch engine.answerLanguage(answer) {
+        case let .replace(replacement):
+            replace(replacement)
+        case let .handOff(handOff):
+            await self.handOff(handOff)
+        case let .rewrite(deleteCount, text):
+            rewrite(deleteCount: deleteCount, text: text)
+        case .pass, .suppress, .askLanguage:
+            preconditionFailure("answerLanguage settles the word with an action")
+        }
+    }
+
+    /// Jev's answer, or `.failed` on an error or after `languageTimeout`.
+    private func languageAnswer(for request: URLRequest) async -> LanguageAnswer {
+        let transport = self.transport
+        return await withTaskGroup(of: LanguageAnswer.self) { group in
+            group.addTask {
+                do {
+                    let (data, status) = try await transport.send(request)
+                    return try JevLanguageResponse.answer(from: data, status: status)
+                } catch {
+                    log.error("Asking Jev failed: \(error)")
+                    return .failed
+                }
+            }
+            group.addTask {
+                do {
+                    try await Task.sleep(for: Self.languageTimeout)
+                    log.error("Jev did not answer within \(Self.languageTimeout, privacy: .public).")
+                } catch {
+                    // Cancelled because Jev answered first; that answer is the one used
+                }
+                return .failed
+            }
+            guard let first = await group.next() else {
+                preconditionFailure("the group has two tasks")
+            }
+            group.cancelAll()
+            return first
         }
     }
 
