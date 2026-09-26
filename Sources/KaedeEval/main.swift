@@ -1,6 +1,7 @@
 import Foundation
 import KaedeConverter
 import KaedeCore
+import KaedeRemote
 
 // Compares ways of converting typed lines on the examples in Evaluation/corpus.tsv.
 // Run from the repository root: `just eval <method>`.
@@ -10,7 +11,7 @@ func fail(_ message: String) -> Never {
     exit(1)
 }
 
-let methods = ["rules", "zenzai"]
+let methods = ["rules", "zenzai", "claude"]
 let arguments = CommandLine.arguments.dropFirst()
 guard arguments.count == 1, let method = arguments.first, methods.contains(method) else {
     fail("usage: kaede-eval <\(methods.joined(separator: "|"))>")
@@ -42,6 +43,17 @@ func azooKey(zenzai: Bool) -> AzooKeyConverter {
 let converter: any LineConverting = switch method {
 case "rules": RulesLineConverter(planner: EnterPlanner(lexicon: lexicon), converter: azooKey(zenzai: false))
 case "zenzai": RulesLineConverter(planner: EnterPlanner(lexicon: lexicon), converter: azooKey(zenzai: true))
+case "claude":
+    // KAEDE_CLAUDE_MODEL and KAEDE_CLAUDE_EFFORT override the defaults for comparing settings
+    ClaudeLineConverter(
+        request: ClaudeRequest(
+            apiKey: Keychain.apiKey(named: "anthropic"),
+            model: ProcessInfo.processInfo.environment["KAEDE_CLAUDE_MODEL"] ?? "claude-opus-5",
+            effort: ProcessInfo.processInfo.environment["KAEDE_CLAUDE_EFFORT"] ?? "low"
+        ),
+        proposal: RulesLineConverter(planner: EnterPlanner(lexicon: lexicon), converter: azooKey(zenzai: true)),
+        transport: URLSessionTransport()
+    )
 default: fail("unknown method \(method)")
 }
 

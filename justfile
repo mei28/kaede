@@ -45,7 +45,12 @@ zenzai-model:
     mkdir -p Models
     test -f Models/zenz-v3.1-small.gguf || curl -fL -o Models/zenz-v3.1-small.gguf https://huggingface.co/Miwa-Keita/zenz-v3.1-small-gguf/resolve/main/ggml-model-Q5_K_M.gguf
 
-# 変換方式を Evaluation/corpus.tsv の例文で比べる（方式: rules, zenzai）
+# API キーをキーチェーンに登録する（name: jev か anthropic。キーは画面に出さずに入力する）
+set-key name:
+    @test "{{name}}" = jev -o "{{name}}" = anthropic || (echo "name は jev か anthropic" && exit 1)
+    security add-generic-password -U -a kaede -s com.mei28.kaede.{{name}} -w
+
+# 変換方式を Evaluation/corpus.tsv の例文で比べる（方式: rules, zenzai, claude）
 eval method: zenzai-model
     swift run -c release KaedeEval {{method}}
 

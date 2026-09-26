@@ -36,16 +36,26 @@ let package = Package(
             // just bundle puts llama.framework (linked through the Zenzai trait) in Contents/Frameworks
             linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]
         ),
+        // Claude と Jev に問い合わせる部分（送る内容の組み立てと応答の読み取り）。
+        .target(
+            name: "KaedeRemote",
+            dependencies: ["KaedeCore"]
+        ),
         // 変換方式を同じ例文で比べる開発用のコマンド（just eval）。
         .executableTarget(
             name: "KaedeEval",
-            dependencies: ["KaedeCore", "KaedeConverter"],
+            dependencies: ["KaedeCore", "KaedeConverter", "KaedeRemote"],
             swiftSettings: cxxInterop
         ),
         // KaedeCore のユニットテスト（swift test で実行）。
         .testTarget(
             name: "KaedeCoreTests",
             dependencies: ["KaedeCore"]
+        ),
+        // KaedeRemote のユニットテスト（ネットワークは使わない）。
+        .testTarget(
+            name: "KaedeRemoteTests",
+            dependencies: ["KaedeRemote"]
         ),
         // 実辞書を使う KaedeConverter の結合テスト。
         .testTarget(
