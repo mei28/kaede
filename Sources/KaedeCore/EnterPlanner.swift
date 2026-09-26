@@ -38,7 +38,7 @@ public struct EnterPlanner: Sendable {
                 guard let segments = segmenter.segments(of: token) else { return .pass }
                 for segment in segments {
                     if segment.kind.isJapanese {
-                        pieces.append(.romaji(segment.text))
+                        pieces.appendRomaji(segment.text)
                     } else {
                         pieces.appendVerbatim(segment.text)
                     }
@@ -79,5 +79,25 @@ private extension [ConversionPiece] {
         } else {
             append(.verbatim(text))
         }
+    }
+
+    /// Joins Japanese typed in different layouts into one piece: conversion does not depend on
+    /// the layout, and converting the whole phrase at once gives the converter more context.
+    mutating func appendRomaji(_ text: String) {
+        if case let .romaji(previous) = last {
+            self[count - 1] = .romaji(Self.hatsuonKept(previous, before: text) + text)
+        } else {
+            append(.romaji(text))
+        }
+    }
+
+    /// A segment ending in a lone "n" meant ん. Joined to text starting with a vowel, y or n,
+    /// the IME would read the n with that text instead ("hon" + "nihon" as ほんいほん), so spell it "nn".
+    private static func hatsuonKept(_ romaji: String, before next: String) -> String {
+        let trailingNs = romaji.reversed().prefix { $0 == "n" }.count
+        guard trailingNs % 2 == 1, let first = next.first, "aiueoyn".contains(first) else {
+            return romaji
+        }
+        return romaji + "n"
     }
 }

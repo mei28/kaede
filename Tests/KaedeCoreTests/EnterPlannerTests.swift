@@ -60,4 +60,33 @@ import Testing
         let planner = EnterPlanner(lexicon: EnglishLexicon(wordList: "api\n"))
         #expect(planner.plan(Run(typing: "api;a,amajd")) == .convert([.verbatim("api"), .romaji("hamadate")]))
     }
+
+    @Test func keepsCapitalizedEnglishAsTyped() {
+        let planner = EnterPlanner(lexicon: EnglishLexicon(wordList: "qwerty\nebi\n"))
+        #expect(planner.plan(Run(typing: "QWERTY ;afidjgjs Ebi")) == .convert([
+            .verbatim("QWERTY "), .romaji("hairetuto"), .verbatim(" Ebi"),
+        ]))
+    }
+
+    @Test func mergesAdjacentJapaneseSegmentsAcrossLayouts() {
+        // "gamazattarieigoto" typed in QWERTY, then "nihonngo" typed with Ebi fingering
+        #expect(planner.plan(Run(typing: "gamazattarieigotokf;skkns")) == .convert([
+            .romaji("gamazattarieigotonihonngo"),
+        ]))
+    }
+
+    @Test(arguments: [
+        // QWERTY "watashino" + Ebi "risoutekiniha", not "watashinoi" + "isoutekiniha"
+        ("watashinoiflsgjdhfkf;a", "watashinorisoutekiniha"),
+        // Ebi "hennkann" + QWERTY "sairerukotodesu", not "hennkannoa" + "irerukotodesu"
+        (";dkkhakksairerukotodesu", "hennkannsairerukotodesu"),
+    ])
+    func resolvesTiesInTheExampleSentence(typed: String, romaji: String) {
+        #expect(planner.plan(Run(typing: typed)) == .convert([.romaji(romaji)]))
+    }
+
+    @Test func keepsALoneNAsHatsuonWhenTheNextSegmentStartsWithN() {
+        // QWERTY "hon" + Ebi "nihon": joined as "honnihon" the IME would read ほんいほん
+        #expect(planner.plan(Run(typing: "honkf;sk")) == .convert([.romaji("honnnihon")]))
+    }
 }
