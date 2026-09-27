@@ -108,6 +108,9 @@ final class EventTap {
         if let order = reaction.switchOrder {
             Task { await perform(order) }
         }
+        if reaction.switchBack {
+            Task { await switchBack() }
+        }
         rescheduleTimer()
     }
 
@@ -150,6 +153,19 @@ final class EventTap {
         poster.typeKeys(order.romaji)
         log.info("Switched a word of \(order.deleteCount, privacy: .public) keys to azooKey as \(order.answer.rawValue, privacy: .public).")
         replay(engine.switchSucceeded())
+    }
+
+    /// Selects the Roman source again once azooKey has committed with the Enter that just passed.
+    private func switchBack() async {
+        await InputSourceSwitcher.pause(InputSourceSwitcher.commitDelay)
+        guard await InputSourceSwitcher.select(InputSourceGuard.romanID) else {
+            log.error("Switching back to the Roman source failed; azooKey keeps the keys.")
+            NSSound.beep()
+            replay(engine.switchBackFailed())
+            return
+        }
+        log.info("Switched back to the Roman source after Enter.")
+        replay(engine.switchedBack())
     }
 
     /// Posts held keys again, unmarked, so they come back through the tap in their order.

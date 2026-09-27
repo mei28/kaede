@@ -11,6 +11,9 @@ enum InputSourceSwitcher {
     static let timeout: Duration = .milliseconds(300)
     /// Lets keys posted before a switch reach the app under the source they were meant for.
     static let settleDelay: Duration = .milliseconds(50)
+    /// Lets azooKey commit with an Enter before the source changes: switching away while it
+    /// still composes may drop the text.
+    static let commitDelay: Duration = .milliseconds(100)
 
     /// Whether the source became current within `timeout`.
     static func select(_ id: String) async -> Bool {

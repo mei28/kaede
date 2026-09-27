@@ -72,12 +72,19 @@ public struct Reaction: Equatable, Sendable {
     public var paused: Bool
     /// A word of at least `minimumStrokes` keys finished.
     public var finishedWord: WordOutcome?
+    /// Enter committed the Japanese in Kaede's azooKey: select the Roman source again, then call
+    /// `switchedBack()` or `switchBackFailed()`.
+    public var switchBack: Bool
 
-    public init(question: Question? = nil, switchOrder: SwitchOrder? = nil, paused: Bool = false, finishedWord: WordOutcome? = nil) {
+    public init(
+        question: Question? = nil, switchOrder: SwitchOrder? = nil, paused: Bool = false,
+        finishedWord: WordOutcome? = nil, switchBack: Bool = false
+    ) {
         self.question = question
         self.switchOrder = switchOrder
         self.paused = paused
         self.finishedWord = finishedWord
+        self.switchBack = switchBack
     }
 }
 
@@ -116,6 +123,8 @@ public final class SwitchEngine {
         case switching(Answer, held: [RawKey])
         /// azooKey takes the keys, read in the layout of the word Kaede switched.
         case remapping(Layout)
+        /// Enter committed the Japanese and the Roman source is coming back; keys wait.
+        case switchingBack(Layout, held: [RawKey])
     }
 
     /// - Parameter rule: judges each finished word as well, for the log.
@@ -150,7 +159,15 @@ public final class SwitchEngine {
             // Keys typed before the word is in azooKey would land in the wrong place
             state = .switching(answer, held: held + [key])
             return (.suppress, Reaction())
+        case let .switchingBack(layout, held):
+            state = .switchingBack(layout, held: held + [key])
+            return (.suppress, Reaction())
         case let .remapping(layout):
+            if source == .azooKey, KeyCode.enter.contains(key.keyCode) {
+                // azooKey commits with this Enter; English comes back after it
+                state = .switchingBack(layout, held: [])
+                return (.pass, Reaction(switchBack: true))
+            }
             if source == .azooKey {
                 return (remap(key, in: layout), Reaction())
             }
@@ -209,6 +226,26 @@ public final class SwitchEngine {
         remember(word.screenText)
         startWord()
         state = .watching
+        return held
+    }
+
+    /// The Roman source is back after Enter. Returns the keys held meanwhile; a new line starts.
+    public func switchedBack() -> [RawKey] {
+        guard case let .switchingBack(_, held) = state else {
+            preconditionFailure("switchedBack while not switching back")
+        }
+        state = .watching
+        startWord()
+        textBefore = ""
+        return held
+    }
+
+    /// The Roman source could not be selected: azooKey keeps the keys. Returns the keys held meanwhile.
+    public func switchBackFailed() -> [RawKey] {
+        guard case let .switchingBack(layout, held) = state else {
+            preconditionFailure("switchBackFailed while not switching back")
+        }
+        state = .remapping(layout)
         return held
     }
 
@@ -281,7 +318,10 @@ public final class SwitchEngine {
     }
 
     private var isSwitching: Bool {
-        if case .switching = state { true } else { false }
+        switch state {
+        case .switching, .switchingBack: true
+        case .watching, .remapping: false
+        }
     }
 
     /// What azooKey gets for a key: the key read in the layout. The text before follows along.
