@@ -11,6 +11,26 @@ public enum RomajiParser {
         reads(chunk, plain: true)
     }
 
+    /// Whether the chunk can still become plain romaji as more keys come: whole syllables, then
+    /// perhaps one still being typed ("tatoeb" on its way to tatoeba). A "-" after a syllable
+    /// reads as ー, as in ko-hi- for コーヒー.
+    public static func isPlainRomajiPrefix(_ chunk: String) -> Bool {
+        let characters = Array(chunk)
+        var reachable = Array(repeating: false, count: characters.count + 1)
+        reachable[0] = true
+        for start in characters.indices where reachable[start] {
+            for end in syllableEnds(in: characters, from: start, plain: true) {
+                reachable[end] = true
+            }
+            if start > 0, characters[start] == "-" {
+                reachable[start + 1] = true
+            }
+        }
+        return characters.indices.contains { start in
+            reachable[start] && unfinishedSyllables.contains(String(characters[start...]))
+        } || reachable[characters.count]
+    }
+
     private static func reads(_ chunk: String, plain: Bool) -> Bool {
         let characters = Array(chunk)
         // reachable[i]: the first i characters split into syllables with nothing left over
@@ -84,4 +104,11 @@ public enum RomajiParser {
     }()
 
     private static let maxSyllableLength = syllables.map(\.count).max()!
+
+    /// Proper starts of plain syllables: a syllable still being typed ("k", "ky", "sh").
+    private static let unfinishedSyllables: Set<String> = Set(
+        syllables.filter { !"xl".contains($0.first!) }.flatMap { syllable in
+            (1..<syllable.count).map { String(syllable.prefix($0)) }
+        }
+    )
 }

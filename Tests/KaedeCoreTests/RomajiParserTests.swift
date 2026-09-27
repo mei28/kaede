@@ -60,4 +60,29 @@ import Testing
         #expect(RomajiParser.isPlainRomaji("ashita"))
         #expect(RomajiParser.isPlainRomaji("hai,iie."))
     }
+
+    @Test func aWordOnItsWayToRomajiIsAPlainRomajiPrefix() {
+        // Whole syllables, then perhaps one still being typed
+        for chunk in ["", "tatoe", "tatoeb", "ky", "sh", "ts", "kit", "kitt", "kan", "hai,"] {
+            #expect(RomajiParser.isPlainRomajiPrefix(chunk), "\(chunk)")
+        }
+    }
+
+    @Test func lettersNoSyllableCanContinueAreNoPlainRomajiPrefix() {
+        for chunk in ["jajsd", "q", "js", "Ta", ";a"] {
+            #expect(!RomajiParser.isPlainRomajiPrefix(chunk), "\(chunk)")
+        }
+    }
+
+    @Test func smallKanaSpellingsAreNoPlainRomajiPrefix() {
+        #expect(!RomajiParser.isPlainRomajiPrefix("xa"))
+        #expect(!RomajiParser.isPlainRomajiPrefix("lt"))
+    }
+
+    @Test func aHyphenAfterASyllableReadsAsALongVowel() {
+        // ko-hi- is how コーヒー is typed
+        #expect(RomajiParser.isPlainRomajiPrefix("ko-hi-"))
+        #expect(!RomajiParser.isPlainRomajiPrefix("-ko"))
+        #expect(!RomajiParser.isPlainRomajiPrefix("k-"))
+    }
 }
