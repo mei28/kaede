@@ -1,6 +1,10 @@
 /// What the tap does with a key.
 public enum KeyAction: Equatable, Sendable {
     case pass
+    /// Hold the key back: the engine returns it once the switch is done.
+    case suppress
+    /// Suppress the key and send this key code with the key's flags in its place.
+    case remap(keyCode: UInt16)
 }
 
 /// What Kaede asks Jev about the word being typed.
@@ -70,11 +74,16 @@ public final class SwitchEngine {
     private var textBefore = ""
     private var state = State.watching
 
+    /// Notifications of input source changes that Kaede's own switch will cause.
+    private var ownSwitchNotifications = 0
+
     private enum State {
         /// Following the word typed with the Roman source.
         case watching
-        /// The word goes to azooKey.
-        case switching
+        /// The word goes to azooKey; keys pressed meanwhile wait.
+        case switching(Answer, held: [RawKey])
+        /// azooKey takes the keys, read in the layout of the word Kaede switched.
+        case remapping(Layout)
     }
 
     public init() {}
@@ -90,6 +99,20 @@ public final class SwitchEngine {
     public func handle(_ key: RawKey, source: InputSource, at instant: ContinuousClock.Instant) -> (KeyAction, Reaction) {
         if key.isKaedeEvent {
             return (.pass, Reaction())
+        }
+        switch state {
+        case .watching:
+            break
+        case let .switching(answer, held):
+            // Keys typed before the word is in azooKey would land in the wrong place
+            state = .switching(answer, held: held + [key])
+            return (.suppress, Reaction())
+        case let .remapping(layout):
+            if source == .azooKey {
+                return (remap(key, in: layout), Reaction())
+            }
+            // Back in English (or elsewhere) without a notification yet
+            state = .watching
         }
         guard source == .roman else {
             // Another source (azooKey switched by hand, say) types into the field meanwhile
@@ -117,6 +140,42 @@ public final class SwitchEngine {
     public func questionFailed(_ id: Int) {
         guard waiting.removeValue(forKey: id) != nil else {
             preconditionFailure("question \(id) failed, but it is not waiting")
+        }
+    }
+
+    /// The word is in azooKey: from now on the keys are read in its layout. Returns the keys held
+    /// meanwhile, for the app to post again in order.
+    public func switchSucceeded() -> [RawKey] {
+        guard case let .switching(answer, held) = state, let layout = answer.layout else {
+            preconditionFailure("switchSucceeded while not switching")
+        }
+        remember(word.reading(in: layout))
+        startWord()
+        state = .remapping(layout)
+        return held
+    }
+
+    /// azooKey could not be selected: the word stays as typed. Returns the keys held meanwhile.
+    public func switchFailed() -> [RawKey] {
+        guard case let .switching(_, held) = state else {
+            preconditionFailure("switchFailed while not switching")
+        }
+        ownSwitchNotifications = 0
+        endWord()
+        state = .watching
+        return held
+    }
+
+    /// The selected input source changed. Apart from Kaede's own switch, the user switched (left
+    /// cmd, or Hammerspoon's right cmd with its own remapping), so Kaede stops remapping.
+    public func inputSourceChanged() {
+        if ownSwitchNotifications > 0 {
+            ownSwitchNotifications -= 1
+            return
+        }
+        if case .remapping = state {
+            state = .watching
+            startWord()
         }
     }
 
@@ -174,6 +233,18 @@ public final class SwitchEngine {
         return nil
     }
 
+    /// What azooKey gets for a key: the key read in the layout. The text before follows along.
+    private func remap(_ key: RawKey, in layout: Layout) -> KeyAction {
+        if key.keyCode == KeyCode.backspace {
+            _ = textBefore.popLast()
+        } else if let position = KeyPosition(keyCode: key.keyCode), !key.hasShortcutModifier {
+            remember(String(key.isSymbolLayer(at: position)
+                ? Layout.qwerty.character(at: position, shift: true)
+                : layout.character(at: position, shift: key.shift)))
+        }
+        return Remap.keyCode(for: key, in: layout).map { .remap(keyCode: $0) } ?? .pass
+    }
+
     /// A question about the word as it is now, unless it is not worth asking, was asked already,
     /// or too many questions are waiting.
     private func ask() -> Question? {
@@ -200,7 +271,8 @@ public final class SwitchEngine {
               let answer = SwitchRule.decide(answersAboutTheWord, strokes: word.elements.count, idle: instant - lastKeyAt),
               let layout = answer.layout, AskRule.options(for: word)?.contains(answer) == true
         else { return Reaction() }
-        state = .switching
+        state = .switching(answer, held: [])
+        ownSwitchNotifications = 1
         return Reaction(switchOrder: SwitchOrder(
             answer: answer, deleteCount: word.screenText.count, romaji: word.reading(in: layout)
         ))
