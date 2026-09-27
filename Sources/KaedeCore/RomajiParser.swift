@@ -1,16 +1,5 @@
-/// Decides whether a chunk reads as romaji from start to end.
+/// Decides whether typed letters can be romaji.
 public enum RomajiParser {
-    public static func isRomaji(_ chunk: String) -> Bool {
-        reads(chunk, plain: false)
-    }
-
-    /// Romaji without small kana (xa, lyo, ltu and the sokuon before them), which ordinary
-    /// Japanese typing never spells out. English typed without spaces often reads as romaji
-    /// only through them ("allyou..." as あっょう).
-    public static func isPlainRomaji(_ chunk: String) -> Bool {
-        reads(chunk, plain: true)
-    }
-
     /// Whether the chunk can still become plain romaji as more keys come: whole syllables, then
     /// perhaps one still being typed ("tatoeb" on its way to tatoeba). A "-" after a syllable
     /// reads as ー, as in ko-hi- for コーヒー.
@@ -29,19 +18,6 @@ public enum RomajiParser {
         return characters.indices.contains { start in
             reachable[start] && unfinishedSyllables.contains(String(characters[start...]))
         } || reachable[characters.count]
-    }
-
-    private static func reads(_ chunk: String, plain: Bool) -> Bool {
-        let characters = Array(chunk)
-        // reachable[i]: the first i characters split into syllables with nothing left over
-        var reachable = Array(repeating: false, count: characters.count + 1)
-        reachable[0] = true
-        for start in characters.indices where reachable[start] {
-            for end in syllableEnds(in: characters, from: start, plain: plain) {
-                reachable[end] = true
-            }
-        }
-        return reachable[characters.count]
     }
 
     /// The positions where a syllable starting at `start` can end, shortest first.

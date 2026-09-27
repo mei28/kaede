@@ -23,7 +23,7 @@ bundle:
     mkdir -p dist/Kaede.app/Contents/MacOS dist/Kaede.app/Contents/Resources
     cp .build/release/Kaede dist/Kaede.app/Contents/MacOS/Kaede
     cp Packaging/Info.plist dist/Kaede.app/Contents/Info.plist
-    # 英単語のリスト（/usr/share/dict/words に足りない活用形や固有の語を補う。辞書の規則のログに使う）
+    # 英単語のリスト（/usr/share/dict/words に足りない活用形や固有の語を補う。英語の途中の文字を守る辞書に使う）
     cp Resources/en10k.txt Resources/extra-words.txt dist/Kaede.app/Contents/Resources/
     codesign --force --sign "{{signing_identity}}" --identifier com.mei28.kaede dist/Kaede.app
     @echo "dist/Kaede.app を作成しました（just run で起動）"
@@ -50,16 +50,6 @@ restart:
     pkill -x Kaede || true
     sleep 1
     open dist/Kaede.app
-
-# 打った語の記録を切り替える（state: on か off。記録は ~/Library/Logs/Kaede/words.jsonl、この Mac の中だけ）
-words-log state:
-    @test "{{state}}" = on -o "{{state}}" = off || (echo "state は on か off" && exit 1)
-    defaults write com.mei28.kaede logWords -bool {{ if state == "on" { "true" } else { "false" } }}
-    @echo "Kaede を起動し直すと反映されます（just restart）"
-
-# 打った語の記録の最近 30 件を見る
-words:
-    tail -n 30 ~/Library/Logs/Kaede/words.jsonl
 
 # 起動中の Kaede を止める（メニューも Dock アイコンもないため）
 stop:

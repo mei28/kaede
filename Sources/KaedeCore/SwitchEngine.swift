@@ -294,7 +294,7 @@ public final class SwitchEngine {
             }
             return Reaction()
         }
-        if KeyCode.resettingRun.contains(key.keyCode) || key.hasShortcutModifier {
+        if KeyCode.movingCaret.contains(key.keyCode) || key.hasShortcutModifier {
             return Reaction(finishedWord: forgetText())
         }
         if let position = KeyPosition(keyCode: key.keyCode), !key.isSymbolLayer(at: position) {

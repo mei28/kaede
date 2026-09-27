@@ -7,7 +7,7 @@ let package = Package(
         .macOS(.v26)
     ],
     targets: [
-        // テスト可能なロジック層（配列、ラン、ローマ字判定、Enter の判断）。AppKit に依存しない。
+        // テスト可能なロジック層（配列、キーの並び、ローマ字の判定、切り替えの判断、評価）。AppKit に依存しない。
         .target(
             name: "KaedeCore"
         ),

@@ -1,10 +1,9 @@
 import Foundation
 
-/// English words, used to tell a run typed as English from one typed as Japanese.
+/// English words, used to keep letters that may still become an English word from switching.
 public struct EnglishLexicon: Sendable {
-    /// Lowercased, so "The" at the start of a sentence and "tokyo" typed in lowercase both match.
-    private let words: Set<String>
-    /// The same words in order, so the words sharing a start sit next to each other.
+    /// Lowercased, so "The" at the start of a sentence and "tokyo" typed in lowercase both match,
+    /// and sorted, so the words sharing a start sit next to each other.
     private let sortedWords: [String]
 
     /// - Parameter wordList: one word per line, as in `/usr/share/dict/words`.
@@ -14,12 +13,11 @@ public struct EnglishLexicon: Sendable {
 
     /// - Parameter wordLists: lists of one word per line; a word in any of them is known.
     public init(wordLists: [String]) {
-        words = Set(
+        sortedWords = Set(
             wordLists.flatMap { $0.split(separator: "\n") }
                 .map { $0.lowercased() }
                 .filter { $0.count > 2 || Self.shortWords.contains($0) }
-        )
-        sortedWords = words.sorted()
+        ).sorted()
     }
 
     /// The only words of one or two letters that count. Word lists also carry fragments such as
@@ -31,10 +29,6 @@ public struct EnglishLexicon: Sendable {
 
     public init(contentsOfFiles paths: [String]) throws {
         self.init(wordLists: try paths.map { try String(contentsOfFile: $0, encoding: .utf8) })
-    }
-
-    public func contains(_ word: String) -> Bool {
-        words.contains(word.lowercased())
     }
 
     /// Whether some word starts with `prefix` (a word starts with itself): letters typed so far

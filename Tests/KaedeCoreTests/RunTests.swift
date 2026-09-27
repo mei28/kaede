@@ -44,15 +44,6 @@ import Testing
         #expect(run.screenText == "Ja /")
     }
 
-    @Test func strokeCountExcludesLiterals() {
-        var run = Run()
-        run.append(.stroke(.a, shift: false))
-        run.append(.literal(" "))
-        run.append(.stroke(.s, shift: true))
-        run.append(.literal("1"))
-        #expect(run.strokeCount == 2)
-    }
-
     @Test(arguments: [
         ("iflsgjdhfkf;a", "risoutekiniha"),
         ("hskkkahakk.fmd", "konnnakannjide"),
@@ -61,6 +52,6 @@ import Testing
     ])
     func ebiReadsTheExampleSentenceChunks(typed: String, reading: String) {
         #expect(Run(typing: typed).reading(in: .ebi) == reading)
-        #expect(RomajiParser.isRomaji(reading))
+        #expect(RomajiParser.isPlainRomajiPrefix(reading))
     }
 }

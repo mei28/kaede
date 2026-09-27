@@ -64,11 +64,6 @@ struct EventPoster {
         }
     }
 
-    /// Presses a key by code, marked (Space to convert in azooKey, Return to commit).
-    func press(_ keyCode: UInt16) {
-        postKey(CGKeyCode(keyCode), flags: [], source: markedSource)
-    }
-
     /// Posts a held key again, unmarked, so the tap handles it as fresh input.
     func replay(_ key: RawKey) {
         postKey(CGKeyCode(key.keyCode), flags: CGEventBridge.flags(of: key), source: nil)

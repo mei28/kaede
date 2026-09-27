@@ -34,10 +34,6 @@ public struct Run: Sendable {
         _ = elements.popLast()
     }
 
-    public var strokeCount: Int {
-        elements.count { if case .stroke = $0 { true } else { false } }
-    }
-
     /// What the run left on screen: the input source is Roman and nothing remaps the keys.
     public var screenText: String {
         reading(in: .qwerty)

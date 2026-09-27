@@ -55,9 +55,8 @@ extension RawKey {
 enum KeyCode {
     static let backspace: UInt16 = 51
     static let space: UInt16 = 49
-    static let escape: UInt16 = 53
     /// Return and keypad Enter.
     static let enter: Set<UInt16> = [36, 76]
     /// Keys that move the caret or leave the text: Tab, Escape, and the four arrows.
-    static let resettingRun: Set<UInt16> = [48, 53, 123, 124, 125, 126]
+    static let movingCaret: Set<UInt16> = [48, 53, 123, 124, 125, 126]
 }
