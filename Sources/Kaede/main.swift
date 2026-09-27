@@ -37,11 +37,12 @@ NSWorkspace.shared.notificationCenter.addObserver(
 ) { _ in
     MainActor.assumeIsolated { tap.caretMoved() }
 }
-let inputSourceWatcher = InputSourceWatcher { tap.inputSourceChanged() }
-
+// Windows and menus need the application object; NSApp stays nil until it is made
+let application = NSApplication.shared
 InputForm.installEditMenu()
 let inputForm = InputForm(keys: formKeys, tap: tap)
 let formHotKey = HotKey(formKeys.open) { inputForm.toggle() }
+let inputSourceWatcher = InputSourceWatcher { tap.inputSourceChanged() }
 
 log.notice("Kaede started.")
-NSApplication.shared.run()
+application.run()

@@ -47,6 +47,17 @@ struct EventPoster {
         postKey(Self.returnKeyCode, flags: .maskShift, source: markedSource)
     }
 
+    /// Presses and releases a command key alone, as the user does to switch with Hammerspoon:
+    /// left for English with its Ebi remapping off, right for azooKey with it on.
+    func tapCommand(right: Bool) {
+        let keyCode: CGKeyCode = right ? 0x36 : 0x37
+        for (keyDown, flags) in [(true, CGEventFlags.maskCommand), (false, [])] {
+            let event = makeEvent(keyCode, keyDown: keyDown, flags: flags, source: markedSource)
+            event.type = .flagsChanged
+            event.post(tap: .cgSessionEventTap)
+        }
+    }
+
     /// Presses the QWERTY keys that spell `romaji` (letters, "," "." and "-"), marked, so an
     /// input method such as azooKey reads them as typed romaji.
     func typeKeys(_ romaji: String) {

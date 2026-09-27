@@ -19,10 +19,9 @@ struct TextInserter {
 
     /// The pause between pieces, so the event tap keeps up with Kaede's own events.
     private static let pieceGap: Duration = .milliseconds(5)
-    /// How long before manual azooKey comes back, after the app has taken the text.
-    private static let restoreDelay: Duration = .milliseconds(200)
 
-    func type(_ pieces: [TypingPiece], into pid: pid_t, tap: EventTap) async throws {
+    /// Selects the Roman source if Kaede switched the form to azooKey, then types the pieces.
+    func type(_ pieces: [TypingPiece], into pid: pid_t) async throws {
         guard await Self.waitUntil(.milliseconds(500), { Self.focusedApplication() == pid }) else {
             throw Failure.focusNotBack
         }
@@ -32,10 +31,7 @@ struct TextInserter {
         guard !SecureInput.isEnabled else {
             throw Failure.secureInput
         }
-        let before = InputSourceGuard.current()
-        // azooKey selected by hand keeps Hammerspoon's Ebi remapping on; it comes back afterwards
-        let restoresAzooKey = before == .azooKey && !tap.isRemapping
-        if before != .roman {
+        if InputSourceGuard.current() != .roman {
             guard await InputSourceSwitcher.select(InputSourceGuard.romanID) else {
                 throw Failure.romanNotSelected
             }
@@ -52,14 +48,6 @@ struct TextInserter {
         }
         let newlines = pieces.count { $0 == .newline }
         log.info("Put the form's text into the app: \(pieces.count - newlines, privacy: .public) pieces, \(newlines, privacy: .public) newlines.")
-        if restoresAzooKey {
-            await InputSourceSwitcher.pause(Self.restoreDelay)
-            guard await InputSourceSwitcher.select(InputSourceSwitcher.azooKeyID) else {
-                log.error("Selecting azooKey again after the form failed; the Roman source stays.")
-                NSSound.beep()
-                return
-            }
-        }
     }
 
     private static let modifierFlags: CGEventFlags = [.maskCommand, .maskControl, .maskAlternate, .maskShift]

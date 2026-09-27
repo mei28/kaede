@@ -3,18 +3,24 @@ import KaedeCore
 
 /// Kaede's window for writing: opened over the app in front, it puts its text into that app.
 ///
-/// The panel never activates Kaede. The app in front stays in front, so hiding the panel gives
-/// the keys back to it, and the event tap judges the keys typed into the panel as anywhere else.
+/// Kaede is the active app while the form is open: the input method reads the keys of the active
+/// app only, so a panel that left the other app in front got plain letters where azooKey should
+/// have composed. Closing the form hands the activation back to the app the text goes to. The
+/// event tap judges the keys typed into the form as anywhere else.
 @MainActor
 final class InputForm {
     private let keys: FormKeys
     private let tap: EventTap
     private let inserter = TextInserter()
+    private let poster = EventPoster()
     private let panel: FormPanel
     private let textView: NSTextView
     private var insertMonitor: Any?
     /// The app in front when the form opened: the text goes there.
     private var target: NSRunningApplication?
+    /// azooKey was selected by hand (with Hammerspoon's Ebi remapping) when the form opened, and
+    /// comes back when it closes.
+    private var restoresManualAzooKey = false
     private var inserting = false
 
     init(keys: FormKeys, tap: EventTap) {
@@ -22,9 +28,7 @@ final class InputForm {
         self.tap = tap
         panel = FormPanel(
             contentRect: NSRect(x: 0, y: 0, width: 640, height: 220),
-            // A panel made non-activating later keeps taking the keys from WindowServer's view,
-            // so the style is set here, at creation
-            styleMask: [.nonactivatingPanel, .titled, .resizable, .utilityWindow],
+            styleMask: [.titled, .resizable, .utilityWindow],
             backing: .buffered, defer: false
         )
         panel.title = "Kaede（\(keys.insert) で入れる、\(keys.open) で閉じる）"
@@ -84,22 +88,80 @@ final class InputForm {
     }
 
     private func show() {
-        guard let front = NSWorkspace.shared.frontmostApplication else {
+        guard let front = NSWorkspace.shared.frontmostApplication, front != .current else {
             log.error("No app is in front to put the form's text into.")
             NSSound.beep()
             return
         }
         target = front
+        tap.formTarget = front.bundleIdentifier
+        let source = InputSourceGuard.current()
+        restoresManualAzooKey = source == .azooKey && !tap.isRemapping
         tap.caretMoved()
+        NSApp.activate()
         panel.makeKeyAndOrderFront(nil)
         panel.makeFirstResponder(textView)
+        Task { await expectActive() }
         log.info("The form opened.")
+        if source != .roman {
+            // Kaede judges only what is typed with the Roman source. Left cmd, as the user would
+            // press it, also turns Hammerspoon's Ebi remapping off, which selecting the source
+            // directly would leave on
+            poster.tapCommand(right: false)
+            Task { await expectRoman() }
+        }
     }
 
     private func hide() {
-        panel.orderOut(nil)
-        tap.caretMoved()
+        putAway()
         log.info("The form closed; the draft stays.")
+        restoreManualAzooKey()
+    }
+
+    /// Hides the form and hands the activation back to the app the text goes to.
+    private func putAway() {
+        panel.orderOut(nil)
+        tap.formTarget = nil
+        if let target {
+            NSApp.yieldActivation(to: target)
+            target.activate(from: .current, options: [])
+        }
+        tap.caretMoved()
+    }
+
+    /// macOS may turn an activation request down; without it the input method ignores the form.
+    private func expectActive() async {
+        let clock = ContinuousClock()
+        let started = clock.now
+        while clock.now - started < Self.switchTimeout {
+            if NSApp.isActive {
+                return
+            }
+            await InputSourceSwitcher.pause(.milliseconds(10))
+        }
+        fail("Kaede could not become the active app, so the form cannot use the input method.")
+        putAway()
+    }
+
+    /// The form's keys go through Hammerspoon's left cmd; without Hammerspoon nothing switches.
+    private func expectRoman() async {
+        let clock = ContinuousClock()
+        let started = clock.now
+        while clock.now - started < Self.switchTimeout {
+            if InputSourceGuard.current() == .roman {
+                return
+            }
+            await InputSourceSwitcher.pause(.milliseconds(10))
+        }
+        fail("Left cmd did not select the Roman source; is Hammerspoon running?")
+    }
+
+    /// Back to the azooKey the user had selected, the way they select it: right cmd, which also
+    /// turns Hammerspoon's Ebi remapping on again.
+    private func restoreManualAzooKey() {
+        guard restoresManualAzooKey else { return }
+        restoresManualAzooKey = false
+        poster.tapCommand(right: true)
     }
 
     private func insert() {
@@ -138,17 +200,21 @@ final class InputForm {
             hide()
             return
         }
-        panel.orderOut(nil)
-        tap.caretMoved()
+        putAway()
         do {
-            try await inserter.type(pieces, into: target.processIdentifier, tap: tap)
+            try await inserter.type(pieces, into: target.processIdentifier)
         } catch {
             fail("Putting the form's text into the app failed: \(error)")
+            tap.formTarget = target.bundleIdentifier
+            NSApp.activate()
             panel.makeKeyAndOrderFront(nil)
             panel.makeFirstResponder(textView)
             return
         }
         textView.string = ""
+        // After the app has taken the text in the Roman source
+        await InputSourceSwitcher.pause(Self.restoreDelay)
+        restoreManualAzooKey()
     }
 
     private func fail(_ message: String) {
@@ -157,6 +223,10 @@ final class InputForm {
     }
 
     private static let frameName = "KaedeInputForm"
+    /// How long Hammerspoon may take to switch after a command key, and macOS to activate Kaede.
+    private static let switchTimeout: Duration = .milliseconds(300)
+    /// How long before manual azooKey comes back, after the app has taken the text.
+    private static let restoreDelay: Duration = .milliseconds(200)
 
     /// Plain text with nothing that changes words behind Kaede's back: Kaede deletes a word by
     /// counting its keys, so a corrected word would throw the count off.
@@ -208,11 +278,11 @@ final class InputForm {
         edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editItem.submenu = edit
         menu.addItem(editItem)
-        NSApp.mainMenu = menu
+        NSApplication.shared.mainMenu = menu
     }
 }
 
-/// A panel that takes the keys without activating Kaede.
+/// The form's panel: it floats over the app the text goes to.
 private final class FormPanel: NSPanel {
     override var canBecomeKey: Bool {
         true

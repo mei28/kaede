@@ -16,6 +16,8 @@ final class EventTap {
     /// Wakes the engine when a pause would settle the latest answer.
     private var pauseTimer: Task<Void, Never>?
     private var timerDeadline: ContinuousClock.Instant?
+    /// The app the input form writes for, while it is open: Jev hears about that app, not Kaede.
+    var formTarget: String?
     /// Totals for the log.
     private var questionsAnswered = 0
     private var inputTokens = 0
@@ -128,7 +130,7 @@ final class EventTap {
         // Kaede asks only while the Roman source is selected
         let request = jev.urlRequest(
             question: question,
-            application: NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
+            application: formTarget ?? NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
             inputSource: InputSourceGuard.romanID
         )
         do {
