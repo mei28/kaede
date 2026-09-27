@@ -6,6 +6,15 @@ public enum Answer: String, CaseIterable, Sendable {
     case japaneseQwerty = "japanese_qwerty"
     case japaneseEbi = "japanese_ebi"
     case keep
+
+    /// The layout a Japanese answer reads the keys in.
+    public var layout: Layout? {
+        switch self {
+        case .japaneseQwerty: .qwerty
+        case .japaneseEbi: .ebi
+        case .english, .keep: nil
+        }
+    }
 }
 
 /// One of Jev's answers and how sure Jev is of it (0 to 1).

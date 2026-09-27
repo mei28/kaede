@@ -17,17 +17,38 @@ public struct Question: Equatable, Sendable {
     public var options: [Answer]
 }
 
+/// How to switch the word to azooKey: delete what its keys put on screen, select azooKey, and
+/// type the word's romaji into it.
+public struct SwitchOrder: Equatable, Sendable {
+    /// The Japanese answer the switch follows.
+    public var answer: Answer
+    /// Characters the word's keys put on screen.
+    public var deleteCount: Int
+    /// The word read in the answer's layout, as keys to press in azooKey.
+    public var romaji: String
+
+    public init(answer: Answer, deleteCount: Int, romaji: String) {
+        self.answer = answer
+        self.deleteCount = deleteCount
+        self.romaji = romaji
+    }
+}
+
 /// What the app does besides handling the key itself.
 public struct Reaction: Equatable, Sendable {
     /// A question to send to Jev.
     public var question: Question?
+    /// Switch the word to azooKey.
+    public var switchOrder: SwitchOrder?
 
-    public init(question: Question? = nil) {
+    public init(question: Question? = nil, switchOrder: SwitchOrder? = nil) {
         self.question = question
+        self.switchOrder = switchOrder
     }
 }
 
-/// Follows the word typed with the Roman source and decides when to ask Jev about it.
+/// Follows the word typed with the Roman source, asks Jev about it, and decides from the answers
+/// when to switch it to azooKey.
 ///
 /// Runs on the tap's thread only, and never reads a clock: each call says when it happens, so
 /// tests and the evaluation can run on made-up time.
@@ -41,10 +62,30 @@ public final class SwitchEngine {
     /// Questions waiting for an answer, by ID.
     private var waiting: [Int: AskedPrefix] = [:]
     private var lastQuestionID = 0
+    /// Jev's answers about prefixes of the word.
+    private var answered: [(elements: [RunElement], judgment: Judgment)] = []
+    /// When the word last changed, for the pause that settles an answer.
+    private var lastKeyAt: ContinuousClock.Instant?
     /// What was typed before the word in this field, as Kaede saw the keys.
     private var textBefore = ""
+    private var state = State.watching
+
+    private enum State {
+        /// Following the word typed with the Roman source.
+        case watching
+        /// The word goes to azooKey.
+        case switching
+    }
 
     public init() {}
+
+    /// When a pause would settle the latest answer, if one would.
+    public var deadline: ContinuousClock.Instant? {
+        guard case .watching = state, let lastKeyAt,
+              let pause = SwitchRule.pauseNeeded(answersAboutTheWord, strokes: word.elements.count)
+        else { return nil }
+        return lastKeyAt + pause
+    }
 
     public func handle(_ key: RawKey, source: InputSource, at instant: ContinuousClock.Instant) -> (KeyAction, Reaction) {
         if key.isKaedeEvent {
@@ -55,12 +96,34 @@ public final class SwitchEngine {
             forgetText()
             return (.pass, Reaction())
         }
-        return (.pass, Reaction(question: watch(key)))
+        return (.pass, Reaction(question: watch(key, at: instant)))
+    }
+
+    /// Jev's answer to a question. It counts only while the word it is about is still being
+    /// typed, however late it comes.
+    public func receive(_ judgment: Judgment, to id: Int, at instant: ContinuousClock.Instant) -> Reaction {
+        guard let prefix = waiting.removeValue(forKey: id) else {
+            preconditionFailure("an answer to question \(id), which is not waiting")
+        }
+        guard case .watching = state, prefix.wordNumber == wordNumber, word.elements.starts(with: prefix.elements) else {
+            return Reaction()
+        }
+        answered.removeAll { $0.elements == prefix.elements }
+        answered.append((prefix.elements, judgment))
+        return decide(at: instant)
     }
 
     /// The question got no answer; its slot is free again.
     public func questionFailed(_ id: Int) {
-        waiting[id] = nil
+        guard waiting.removeValue(forKey: id) != nil else {
+            preconditionFailure("question \(id) failed, but it is not waiting")
+        }
+    }
+
+    /// Time passed without a key: a pause may have settled the latest answer.
+    public func tick(at instant: ContinuousClock.Instant) -> Reaction {
+        guard case .watching = state else { return Reaction() }
+        return decide(at: instant)
     }
 
     /// A click or another app: the caret may be anywhere now.
@@ -70,7 +133,7 @@ public final class SwitchEngine {
     }
 
     /// Updates the word for a key typed with the Roman source, and returns the question to ask.
-    private func watch(_ key: RawKey) -> Question? {
+    private func watch(_ key: RawKey, at instant: ContinuousClock.Instant) -> Question? {
         if KeyCode.enter.contains(key.keyCode) {
             // A line sent or ended: what came before belongs to another message
             endWord()
@@ -83,6 +146,7 @@ public final class SwitchEngine {
                 _ = textBefore.popLast()
             } else {
                 word.removeLast()
+                lastKeyAt = instant
             }
             return nil
         }
@@ -92,6 +156,7 @@ public final class SwitchEngine {
         }
         if let position = KeyPosition(keyCode: key.keyCode), !key.isSymbolLayer(at: position) {
             word.append(.stroke(position, shift: key.shift))
+            lastKeyAt = instant
             return ask()
         }
         guard let character = key.printableCharacter else {
@@ -101,6 +166,7 @@ public final class SwitchEngine {
         // A long vowel inside a word (ko-hi-); at its start it is a separator
         if character == "-", !word.elements.isEmpty {
             word.append(.literal(character))
+            lastKeyAt = instant
             return ask()
         }
         endWord()
@@ -127,6 +193,26 @@ public final class SwitchEngine {
         )
     }
 
+    /// Switches the word when the answers about it are settled, and the whole word still reads as
+    /// romaji in the answer's layout: typing unreadable keys into azooKey would garble them.
+    private func decide(at instant: ContinuousClock.Instant) -> Reaction {
+        guard let lastKeyAt,
+              let answer = SwitchRule.decide(answersAboutTheWord, strokes: word.elements.count, idle: instant - lastKeyAt),
+              let layout = answer.layout, AskRule.options(for: word)?.contains(answer) == true
+        else { return Reaction() }
+        state = .switching
+        return Reaction(switchOrder: SwitchOrder(
+            answer: answer, deleteCount: word.screenText.count, romaji: word.reading(in: layout)
+        ))
+    }
+
+    /// The answers about prefixes of the word as it is now, shortest first.
+    private var answersAboutTheWord: [AnsweredPrefix] {
+        answered.filter { word.elements.starts(with: $0.elements) }
+            .sorted { $0.elements.count < $1.elements.count }
+            .map { AnsweredPrefix(strokes: $0.elements.count, judgment: $0.judgment) }
+    }
+
     /// The word is done: its keys join the text before, and a new word starts.
     private func endWord() {
         remember(word.screenText)
@@ -137,6 +223,8 @@ public final class SwitchEngine {
         word = Run()
         wordNumber += 1
         asked = []
+        answered = []
+        lastKeyAt = nil
     }
 
     /// Drops the word and the text before.
