@@ -7,3 +7,14 @@ public enum Answer: String, CaseIterable, Sendable {
     case japaneseEbi = "japanese_ebi"
     case keep
 }
+
+/// One of Jev's answers and how sure Jev is of it (0 to 1).
+public struct Judgment: Equatable, Sendable {
+    public var answer: Answer
+    public var confidence: Double
+
+    public init(answer: Answer, confidence: Double) {
+        self.answer = answer
+        self.confidence = confidence
+    }
+}
