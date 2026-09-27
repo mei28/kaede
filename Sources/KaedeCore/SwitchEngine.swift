@@ -127,9 +127,12 @@ public final class SwitchEngine {
         case switchingBack(Layout, held: [RawKey])
     }
 
-    /// - Parameter rule: judges each finished word as well, for the log.
-    public init(rule: DictionaryRule) {
+    /// - Parameters:
+    ///   - rule: judges each finished word as well, for the log.
+    ///   - textBefore: what was typed before in the field; the evaluation starts mid-sentence.
+    public init(rule: DictionaryRule, textBefore: String = "") {
         self.rule = rule
+        self.textBefore = String(textBefore.suffix(Tuning.textBeforeLimit))
     }
 
     /// When a pause would settle the latest answer, if one would.
