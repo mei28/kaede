@@ -11,9 +11,6 @@ Package.resolved
 xcuserdata/
 DerivedData/
 
-# Zenzai の重み（just zenzai-model で取得する）
-/Models/
-
 # 配布用ビルド成果物
 /dist/
 *.app
