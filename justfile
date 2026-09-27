@@ -42,9 +42,9 @@ set-key name:
     @test "{{name}}" = jev -o "{{name}}" = anthropic || (echo "name は jev か anthropic" && exit 1)
     security add-generic-password -U -a kaede -s com.mei28.kaede.{{name}} -w
 
-# 変換方式を Evaluation/corpus.tsv の例文で比べる（方式: rules, zenzai, claude, jev）
-eval method: zenzai-model
-    swift run -c release KaedeEval {{method}}
+# 語ごとの正解の表（Evaluation/words.tsv）で、切り替えの良し悪しを Jev の答えで数える（Jev に問い合わせる）
+eval:
+    swift run -c release KaedeEval
 
 # 作り直さずに Kaede を起動し直す（許可は外れない）
 restart:

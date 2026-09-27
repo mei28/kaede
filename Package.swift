@@ -38,11 +38,10 @@ let package = Package(
             name: "KaedeRemote",
             dependencies: ["KaedeCore"]
         ),
-        // 変換方式を同じ例文で比べる開発用のコマンド（just eval）。
+        // 語ごとの正解の表で、切り替えの良し悪しを Jev の答えで数える開発用のコマンド（just eval）。
         .executableTarget(
             name: "KaedeEval",
-            dependencies: ["KaedeCore", "KaedeConverter", "KaedeRemote"],
-            swiftSettings: cxxInterop
+            dependencies: ["KaedeCore", "KaedeRemote"]
         ),
         // KaedeCore のユニットテスト（swift test で実行）。
         .testTarget(
