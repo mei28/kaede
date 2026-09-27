@@ -7,14 +7,14 @@ import Testing
     let pauseKey = RawKey(keyCode: KeyPosition.p.keyCode, character: "π", control: true, option: true)
 
     @Test func thePauseKeyIsSwallowedAndNothingIsAskedAfterIt() {
-        let engine = SwitchEngine()
+        let engine = SwitchEngine(rule: .forTests)
         #expect(engine.handle(pauseKey, source: .roman, at: t0) == (.suppress, Reaction(paused: true)))
         #expect(engine.handle(.typing("j"), source: .roman, at: t0) == (.pass, Reaction()))
         #expect(engine.type("ajsd/a", at: t0).isEmpty)
     }
 
     @Test func keysTypedWhilePausedStayOutOfTheTextBefore() {
-        let engine = SwitchEngine()
+        let engine = SwitchEngine(rule: .forTests)
         engine.type("kore ", at: t0)
         _ = engine.handle(pauseKey, source: .roman, at: t0)
         engine.type("secret", at: t0)
@@ -24,7 +24,7 @@ import Testing
     }
 
     @Test func enterResumes() {
-        let engine = SwitchEngine()
+        let engine = SwitchEngine(rule: .forTests)
         _ = engine.handle(pauseKey, source: .roman, at: t0)
         engine.type("secret", at: t0)
         #expect(engine.handle(.enter, source: .roman, at: t0).0 == .pass)
@@ -32,14 +32,14 @@ import Testing
     }
 
     @Test func aMovedCaretResumes() {
-        let engine = SwitchEngine()
+        let engine = SwitchEngine(rule: .forTests)
         _ = engine.handle(pauseKey, source: .roman, at: t0)
         _ = engine.caretMoved()
         #expect(engine.type("jaj", at: t0).count == 1)
     }
 
     @Test func pausingDropsTheWordAndItsAnswers() {
-        let engine = SwitchEngine()
+        let engine = SwitchEngine(rule: .forTests)
         let question = engine.type("jaj", at: t0)[0]
         _ = engine.handle(pauseKey, source: .roman, at: t0)
         _ = engine.handle(pauseKey, source: .roman, at: t0)
@@ -47,7 +47,7 @@ import Testing
     }
 
     @Test func thePauseKeyWorksInKaedesAzooKeyToo() {
-        let engine = SwitchEngine()
+        let engine = SwitchEngine(rule: .forTests)
         let question = engine.type("jaj", at: t0)[0]
         _ = engine.receive(Judgment(answer: .japaneseEbi, confidence: 0.95), to: question.id, at: t0)
         _ = engine.switchSucceeded()

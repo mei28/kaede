@@ -38,6 +38,22 @@ public struct SwitchOrder: Equatable, Sendable {
     }
 }
 
+/// A finished word: what the dictionary rule would have said, next to what Jev settled
+/// (English when the word ended without a switch). Logged to see how often they agree.
+public struct WordOutcome: Equatable, Sendable {
+    public var rule: Answer
+    public var jev: Answer
+
+    public init(rule: Answer, jev: Answer) {
+        self.rule = rule
+        self.jev = jev
+    }
+
+    public var agrees: Bool {
+        rule == jev
+    }
+}
+
 /// What the app does besides handling the key itself.
 public struct Reaction: Equatable, Sendable {
     /// A question to send to Jev.
@@ -46,11 +62,14 @@ public struct Reaction: Equatable, Sendable {
     public var switchOrder: SwitchOrder?
     /// The user just paused Kaede: play the pause sound.
     public var paused: Bool
+    /// A word of at least `minimumStrokes` keys finished.
+    public var finishedWord: WordOutcome?
 
-    public init(question: Question? = nil, switchOrder: SwitchOrder? = nil, paused: Bool = false) {
+    public init(question: Question? = nil, switchOrder: SwitchOrder? = nil, paused: Bool = false, finishedWord: WordOutcome? = nil) {
         self.question = question
         self.switchOrder = switchOrder
         self.paused = paused
+        self.finishedWord = finishedWord
     }
 }
 
@@ -60,6 +79,7 @@ public struct Reaction: Equatable, Sendable {
 /// Runs on the tap's thread only, and never reads a clock: each call says when it happens, so
 /// tests and the evaluation can run on made-up time.
 public final class SwitchEngine {
+    private let rule: DictionaryRule
     /// The keys of the word being typed: layout keys, and "-" inside the word.
     private var word = Run()
     /// Counts the words, so an answer about an earlier word is known for what it is.
@@ -92,7 +112,10 @@ public final class SwitchEngine {
         case remapping(Layout)
     }
 
-    public init() {}
+    /// - Parameter rule: judges each finished word as well, for the log.
+    public init(rule: DictionaryRule) {
+        self.rule = rule
+    }
 
     /// When a pause would settle the latest answer, if one would.
     public var deadline: ContinuousClock.Instant? {
@@ -130,13 +153,12 @@ public final class SwitchEngine {
         }
         guard source == .roman else {
             // Another source (azooKey switched by hand, say) types into the field meanwhile
-            forgetText()
-            return (.pass, Reaction())
+            return (.pass, Reaction(finishedWord: forgetText()))
         }
         if paused {
             return (.pass, Reaction())
         }
-        return (.pass, Reaction(question: watch(key, at: instant)))
+        return (.pass, watch(key, at: instant))
     }
 
     /// Jev's answer to a question. It counts only while the word it is about is still being
@@ -178,7 +200,9 @@ public final class SwitchEngine {
             preconditionFailure("switchFailed while not switching")
         }
         ownSwitchNotifications = 0
-        endWord()
+        // Reported already when the switch was decided
+        remember(word.screenText)
+        startWord()
         state = .watching
         return held
     }
@@ -205,17 +229,17 @@ public final class SwitchEngine {
     /// A click or another app: the caret may be anywhere now.
     public func caretMoved() -> Reaction {
         paused = false
-        forgetText()
-        return Reaction()
+        return Reaction(finishedWord: forgetText())
     }
 
-    /// Updates the word for a key typed with the Roman source, and returns the question to ask.
-    private func watch(_ key: RawKey, at instant: ContinuousClock.Instant) -> Question? {
+    /// Updates the word for a key typed with the Roman source: a question to ask, or the word
+    /// finished.
+    private func watch(_ key: RawKey, at instant: ContinuousClock.Instant) -> Reaction {
         if KeyCode.enter.contains(key.keyCode) {
             // A line sent or ended: what came before belongs to another message
-            endWord()
+            let outcome = endWord()
             textBefore = ""
-            return nil
+            return Reaction(finishedWord: outcome)
         }
         if key.keyCode == KeyCode.backspace {
             if word.elements.isEmpty {
@@ -225,30 +249,28 @@ public final class SwitchEngine {
                 word.removeLast()
                 lastKeyAt = instant
             }
-            return nil
+            return Reaction()
         }
         if KeyCode.resettingRun.contains(key.keyCode) || key.hasShortcutModifier {
-            forgetText()
-            return nil
+            return Reaction(finishedWord: forgetText())
         }
         if let position = KeyPosition(keyCode: key.keyCode), !key.isSymbolLayer(at: position) {
             word.append(.stroke(position, shift: key.shift))
             lastKeyAt = instant
-            return ask()
+            return Reaction(question: ask())
         }
         guard let character = key.printableCharacter else {
-            forgetText()
-            return nil
+            return Reaction(finishedWord: forgetText())
         }
         // A long vowel inside a word (ko-hi-); at its start it is a separator
         if character == "-", !word.elements.isEmpty {
             word.append(.literal(character))
             lastKeyAt = instant
-            return ask()
+            return Reaction(question: ask())
         }
-        endWord()
+        let outcome = endWord()
         remember(String(character))
-        return nil
+        return Reaction(finishedWord: outcome)
     }
 
     private static func isPauseKey(_ key: RawKey) -> Bool {
@@ -299,9 +321,10 @@ public final class SwitchEngine {
         else { return Reaction() }
         state = .switching(answer, held: [])
         ownSwitchNotifications = 1
-        return Reaction(switchOrder: SwitchOrder(
-            answer: answer, deleteCount: word.screenText.count, romaji: word.reading(in: layout)
-        ))
+        return Reaction(
+            switchOrder: SwitchOrder(answer: answer, deleteCount: word.screenText.count, romaji: word.reading(in: layout)),
+            finishedWord: WordOutcome(rule: rule.judge(word), jev: answer)
+        )
     }
 
     /// The answers about prefixes of the word as it is now, shortest first.
@@ -311,10 +334,18 @@ public final class SwitchEngine {
             .map { AnsweredPrefix(strokes: $0.elements.count, judgment: $0.judgment) }
     }
 
-    /// The word is done: its keys join the text before, and a new word starts.
-    private func endWord() {
+    /// The word is done as typed: its keys join the text before, and a new word starts.
+    private func endWord() -> WordOutcome? {
+        let outcome = outcomeAsTyped
         remember(word.screenText)
         startWord()
+        return outcome
+    }
+
+    /// A word long enough to have been asked about stayed English.
+    private var outcomeAsTyped: WordOutcome? {
+        guard word.elements.count >= Tuning.minimumStrokes else { return nil }
+        return WordOutcome(rule: rule.judge(word), jev: .english)
     }
 
     private func startWord() {
@@ -326,9 +357,11 @@ public final class SwitchEngine {
     }
 
     /// Drops the word and the text before.
-    private func forgetText() {
+    private func forgetText() -> WordOutcome? {
+        let outcome = outcomeAsTyped
         startWord()
         textBefore = ""
+        return outcome
     }
 
     private func remember(_ text: String) {

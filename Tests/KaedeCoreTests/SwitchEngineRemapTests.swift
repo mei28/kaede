@@ -7,7 +7,7 @@ import Testing
 
     /// An engine that just decided to switch "jaj" (Ebi: tat) to azooKey.
     private func switchingEngine() -> SwitchEngine {
-        let engine = SwitchEngine()
+        let engine = SwitchEngine(rule: .forTests)
         let question = engine.type("jaj", at: t0)[0]
         let reaction = engine.receive(Judgment(answer: .japaneseEbi, confidence: 0.95), to: question.id, at: t0)
         precondition(reaction.switchOrder != nil)
@@ -62,7 +62,7 @@ import Testing
     }
 
     @Test func answersDuringAndAfterTheSwitchAreDroppedButFreeTheirSlots() {
-        let engine = SwitchEngine()
+        let engine = SwitchEngine(rule: .forTests)
         let asked = engine.type("jajsd/", at: t0)
         #expect(asked.count == 4)
         #expect(engine.receive(Judgment(answer: .japaneseEbi, confidence: 0.95), to: asked[0].id, at: t0).switchOrder != nil)

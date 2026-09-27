@@ -28,3 +28,8 @@ extension SwitchEngine {
         text.compactMap { handle(.typing($0), source: .roman, at: instant).1.question }
     }
 }
+
+extension DictionaryRule {
+    /// Knows a few English words, so the tests read without the system word list.
+    static let forTests = DictionaryRule(lexicon: EnglishLexicon(wordList: "the\nthink\nwater\n"))
+}
