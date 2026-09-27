@@ -16,7 +16,7 @@ let package = Package(
             name: "Kaede",
             dependencies: ["KaedeCore", "KaedeRemote"]
         ),
-        // Claude と Jev に問い合わせる部分（送る内容の組み立てと応答の読み取り）。
+        // Jev に問い合わせる部分（送る内容の組み立てと応答の読み取り、キーチェーン）。
         .target(
             name: "KaedeRemote",
             dependencies: ["KaedeCore"]

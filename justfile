@@ -32,9 +32,9 @@ bundle:
 run: bundle
     open dist/Kaede.app
 
-# API キーをキーチェーンに登録する（name: jev か anthropic。キーは画面に出さずに入力する）
+# Jev の API キーをキーチェーンに登録する（キーは画面に出さずに入力する）
 set-key name:
-    @test "{{name}}" = jev -o "{{name}}" = anthropic || (echo "name は jev か anthropic" && exit 1)
+    @test "{{name}}" = jev || (echo "name は jev" && exit 1)
     security add-generic-password -U -a kaede -s com.mei28.kaede.{{name}} -w
 
 # 語ごとの正解の表（Evaluation/words.tsv）で、切り替えの良し悪しを Jev の答えで数える（Jev に問い合わせる）
