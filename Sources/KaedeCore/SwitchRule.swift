@@ -9,34 +9,47 @@ public struct AnsweredPrefix: Equatable, Sendable {
     }
 }
 
-/// When Jev's answers about a growing word are settled enough to switch to Japanese
-/// (jev-auto-ime's rule: an answer to a growing prefix wavers, so one answer is not enough).
+/// When Jev's answers about a growing word are settled enough to switch to Japanese.
+///
+/// jev-auto-ime's rules are the base: an answer to a growing prefix wavers, so one answer is
+/// not enough. The dictionary guards them: while the letters may still become a known English
+/// word, only a very confident answer switches, since Jev took English words for romaji when a
+/// pause settled its modest answers. Once no English word starts with the letters, a modest answer
+/// is enough.
 public enum SwitchRule {
     /// The Japanese answer to switch to, or nil to keep waiting.
     /// - Parameters:
     ///   - answers: the answers about the word, fewest strokes first.
     ///   - strokes: the word's strokes now.
     ///   - idle: how long ago the last key was pressed.
-    public static func decide(_ answers: [AnsweredPrefix], strokes: Int, idle: Duration) -> Answer? {
+    ///   - englishStart: whether a known English word starts with the letters typed so far.
+    public static func decide(_ answers: [AnsweredPrefix], strokes: Int, idle: Duration, englishStart: Bool) -> Answer? {
         guard let latest = answers.last, isCandidate(latest) else { return nil }
         let recent = answers.suffix(Tuning.streakLength)
         let opposed = isOpposed(latest, within: recent)
         if latest.judgment.confidence >= Tuning.immediateConfidence && !opposed {
             return latest.judgment.answer
         }
+        if englishStart {
+            return nil
+        }
+        if latest.judgment.confidence >= Tuning.unguardedConfidence && !opposed {
+            return latest.judgment.answer
+        }
         if isStreak(recent) {
             return latest.judgment.answer
         }
-        if let pause = pauseNeeded(answers, strokes: strokes), idle >= pause {
+        if let pause = pauseNeeded(answers, strokes: strokes, englishStart: englishStart), idle >= pause {
             return latest.judgment.answer
         }
         return nil
     }
 
     /// How long a pause after the last key would switch on the latest answer; nil when no pause
-    /// would. Only an answer about the whole word counts, as more keys may change it.
-    public static func pauseNeeded(_ answers: [AnsweredPrefix], strokes: Int) -> Duration? {
-        guard let latest = answers.last, isCandidate(latest), latest.strokes == strokes,
+    /// would. Only an answer about the whole word counts, as more keys may change it, and no
+    /// pause switches letters that may still become an English word.
+    public static func pauseNeeded(_ answers: [AnsweredPrefix], strokes: Int, englishStart: Bool) -> Duration? {
+        guard !englishStart, let latest = answers.last, isCandidate(latest), latest.strokes == strokes,
               latest.judgment.confidence >= Tuning.confidence
         else { return nil }
         guard isOpposed(latest, within: answers.suffix(Tuning.streakLength)) else {

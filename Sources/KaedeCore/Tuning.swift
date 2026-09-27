@@ -9,6 +9,10 @@ public enum Tuning {
     public static let confidence = 0.55
     /// An answer this confident, with nothing opposing it, switches at once.
     public static let immediateConfidence = 0.90
+    /// Once no known English word starts with the letters, an answer this confident with nothing
+    /// opposing it switches at once. On the evaluation table this switched Japanese two keys
+    /// sooner than jev-auto-ime's rules, without switching English.
+    public static let unguardedConfidence = 0.45
     /// Answers in a row that switch when they agree; also how far back an answer can oppose.
     public static let streakLength = 3
     /// How long the hands rest on the latest answer before it switches.

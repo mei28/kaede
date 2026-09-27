@@ -138,7 +138,7 @@ public final class SwitchEngine {
     /// When a pause would settle the latest answer, if one would.
     public var deadline: ContinuousClock.Instant? {
         guard case .watching = state, let lastKeyAt,
-              let pause = SwitchRule.pauseNeeded(answersAboutTheWord, strokes: word.elements.count)
+              let pause = SwitchRule.pauseNeeded(answersAboutTheWord, strokes: word.elements.count, englishStart: rule.isEnglishStart(word))
         else { return nil }
         return lastKeyAt + pause
     }
@@ -362,7 +362,10 @@ public final class SwitchEngine {
     /// romaji in the answer's layout: typing unreadable keys into azooKey would garble them.
     private func decide(at instant: ContinuousClock.Instant) -> Reaction {
         guard let lastKeyAt,
-              let answer = SwitchRule.decide(answersAboutTheWord, strokes: word.elements.count, idle: instant - lastKeyAt),
+              let answer = SwitchRule.decide(
+                  answersAboutTheWord, strokes: word.elements.count, idle: instant - lastKeyAt,
+                  englishStart: rule.isEnglishStart(word)
+              ),
               let layout = answer.layout, AskRule.options(for: word)?.contains(answer) == true
         else { return Reaction() }
         state = .switching(answer, held: [])

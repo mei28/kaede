@@ -63,11 +63,11 @@ import Testing
         #expect(Simulation.run(ebi, rule: .forTests, answers: answering(.keep, 0.95, for: ebi)).verdict == .missed)
     }
 
-    @Test func aPauseAtTheEndOfTheWordCanSwitchIt() {
-        // 0.6 never switches at once, but the hands rest before the space
-        let word = WordCase(textBefore: "", keys: "jaj", answer: .japaneseEbi)
-        let result = Simulation.run(word, rule: .forTests, answers: answering(.japaneseEbi, 0.6, for: word))
-        #expect(result.switchedTo == .japaneseEbi)
+    @Test func lettersThatMayStillBeEnglishWaitForAVeryConfidentAnswer() {
+        // wat may still become water, and the rest before the space does not switch it
+        let word = WordCase(textBefore: "", keys: "wat", answer: .english)
+        let result = Simulation.run(word, rule: .forTests, answers: answering(.japaneseQwerty, 0.6, for: word))
+        #expect(result.switchedTo == nil)
     }
 }
 

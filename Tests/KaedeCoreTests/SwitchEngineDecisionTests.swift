@@ -48,32 +48,37 @@ import Testing
         #expect(engine.receive(judgment(.japaneseQwerty, 0.95), to: questions[0].id, at: ms(100)) == Reaction())
     }
 
-    @Test func aPauseOnTheLatestAnswerSwitchesAtTheDeadline() {
+    @Test func lettersThatMayStillBeEnglishWaitForAVeryConfidentAnswer() {
         let engine = SwitchEngine(rule: .forTests)
-        let question = engine.type("jaj", at: t0)[0]
+        // wat may still become water
+        let question = engine.type("wat", at: t0)[0]
+        #expect(engine.receive(judgment(.japaneseQwerty, 0.6), to: question.id, at: ms(100)) == Reaction())
         #expect(engine.deadline == nil)
-        #expect(engine.receive(judgment(.japaneseEbi, 0.6), to: question.id, at: ms(100)) == Reaction())
-        #expect(engine.deadline == ms(350))
-        #expect(engine.tick(at: ms(349)) == Reaction())
-        #expect(engine.tick(at: ms(350)).switchOrder?.romaji == "tat")
+        // No English word starts with watas
+        let next = engine.type("as", at: ms(200))[1]
+        #expect(engine.receive(judgment(.japaneseQwerty, 0.6), to: next.id, at: ms(300)).switchOrder?.romaji == "watas")
     }
 
-    @Test func anOpposingAnswerPutsTheDeadlineFurtherAway() {
+    @Test func aPauseAfterAnOpposedAnswerSwitchesAtTheDeadline() {
         let engine = SwitchEngine(rule: .forTests)
         let questions = engine.type("jaja", at: t0)
+        #expect(engine.deadline == nil)
         _ = engine.receive(judgment(.english, 0.6), to: questions[0].id, at: ms(100))
-        _ = engine.receive(judgment(.japaneseEbi, 0.95), to: questions[1].id, at: ms(100))
+        #expect(engine.receive(judgment(.japaneseEbi, 0.95), to: questions[1].id, at: ms(100)) == Reaction())
         #expect(engine.deadline == ms(700))
+        #expect(engine.tick(at: ms(699)) == Reaction())
+        #expect(engine.tick(at: ms(700)).switchOrder?.romaji == "tata")
     }
 
     @Test func aKeyAfterTheAnswerWaitsForAnAnswerAboutTheWholeWord() {
         let engine = SwitchEngine(rule: .forTests)
-        let question = engine.type("jaj", at: t0)[0]
-        _ = engine.receive(judgment(.japaneseEbi, 0.6), to: question.id, at: ms(100))
-        let next = engine.type("a", at: ms(200))[0]
+        let questions = engine.type("jaja", at: t0)
+        _ = engine.receive(judgment(.english, 0.6), to: questions[0].id, at: ms(100))
+        _ = engine.receive(judgment(.japaneseEbi, 0.95), to: questions[1].id, at: ms(100))
+        let next = engine.type("j", at: ms(200))[0]
         #expect(engine.deadline == nil)
-        _ = engine.receive(judgment(.japaneseEbi, 0.6), to: next.id, at: ms(300))
-        #expect(engine.deadline == ms(550))
+        _ = engine.receive(judgment(.japaneseEbi, 0.95), to: next.id, at: ms(300))
+        #expect(engine.deadline == ms(900))
     }
 
     @Test func nothingMoreIsDecidedOnceTheWordIsSwitching() {

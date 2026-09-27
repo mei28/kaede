@@ -46,6 +46,10 @@ set-key name:
 eval:
     swift run -c release KaedeEval
 
+# 誤って日本語に切り替わった英単語や名前を、英語として守る語の一覧に足す（反映は just bundle の後）
+add-word word:
+    @grep -qxi "{{word}}" Resources/extra-words.txt && echo "{{word}} はもう入っています" || (echo "{{word}}" >> Resources/extra-words.txt && echo "{{word}} を足しました。just bundle で作り直すと反映されます")
+
 # 作り直さずに Kaede を起動し直す（許可は外れない）
 restart:
     pkill -x Kaede || true
