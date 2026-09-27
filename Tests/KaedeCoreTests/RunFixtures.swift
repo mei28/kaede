@@ -14,7 +14,3 @@ extension KeyEngine {
         }
     }
 }
-
-extension RawKey {
-    static let enter = RawKey(keyCode: 36, character: "\r")
-}

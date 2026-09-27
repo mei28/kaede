@@ -15,4 +15,11 @@ public enum Tuning {
     public static let pause: Duration = .milliseconds(350)
     /// The same, when an opposing answer came just before.
     public static let opposedPause: Duration = .milliseconds(700)
+
+    /// The last keys of a long word sent to Jev (jev-auto-ime sends 80).
+    public static let keysLimit = 80
+    /// The characters before the word sent to Jev as context (jev-auto-ime sends 240).
+    public static let textBeforeLimit = 240
+    /// Questions waiting for an answer at once. More are not asked; the next key asks again.
+    public static let questionsInFlight = 4
 }
