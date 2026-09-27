@@ -1,55 +1,42 @@
 import AppKit
-import KaedeConverter
 import KaedeCore
 import KaedeRemote
 
 guard let resources = Bundle.main.resourceURL else {
     terminate("Kaede must run from its .app bundle (just run).")
 }
-let dictionaryDirectory = resources.appending(path: "Dictionary", directoryHint: .isDirectory)
-Startup.verify(dictionaryDirectory: dictionaryDirectory)
+Startup.verify()
 
+// The dictionary rule only feeds the log, next to Jev's answers
 let lexicon: EnglishLexicon
-// The top-10k list and the user's words: only these respace English typed without spaces
-let commonWords: EnglishLexicon
 do {
     let bundledLists = ["en10k.txt", "extra-words.txt"].map { resources.appending(path: $0).path(percentEncoded: false) }
     lexicon = try EnglishLexicon(contentsOfFiles: ["/usr/share/dict/words"] + bundledLists)
-    commonWords = try EnglishLexicon(contentsOfFiles: bundledLists)
 } catch {
     terminate("Could not read the English word lists: \(error)")
 }
 
-// Jev settles ambiguous words when its key is stored; without it the rules do
-let jev: Jev?
+// Without Jev, Kaede has nothing to decide with
+let jevKey: String
 do {
-    jev = try Keychain.apiKey(named: "jev").map(Jev.init(apiKey:))
+    guard let key = try Keychain.apiKey(named: "jev") else {
+        terminate("No Jev API key is stored. Store it with `just set-key jev`, then start Kaede again.")
+    }
+    jevKey = key
 } catch {
     terminate("Could not read the Jev API key: \(error)")
 }
-log.notice("Jev is \(jev == nil ? "off (no key stored)" : "on", privacy: .public).")
 
-// The record of typed words is opt-in (`just words-log on`): it holds what the user typed
-let wordLog = UserDefaults.standard.bool(forKey: WordLog.defaultsKey) ? WordLog() : nil
-log.notice("The word record is \(wordLog == nil ? "off" : "on", privacy: .public).")
-
-let tap = EventTap(
-    planner: EnterPlanner(lexicon: lexicon, commonWords: commonWords),
-    converter: AzooKeyConverter(
-        dictionaryDirectory: dictionaryDirectory,
-        memoryDirectory: FileManager.default.temporaryDirectory
-    ),
-    jev: jev,
-    wordLog: wordLog
-)
+let tap = EventTap(engine: SwitchEngine(rule: DictionaryRule(lexicon: lexicon)), jev: JevSwitchRequest(apiKey: jevKey))
 tap.start()
 
-// Switching apps moves the caret out of the run.
+// Switching apps moves the caret out of the word.
 NSWorkspace.shared.notificationCenter.addObserver(
     forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
 ) { _ in
-    MainActor.assumeIsolated { tap.discardRun() }
+    MainActor.assumeIsolated { tap.caretMoved() }
 }
+let inputSourceWatcher = InputSourceWatcher { tap.inputSourceChanged() }
 
 log.notice("Kaede started.")
 NSApplication.shared.run()

@@ -1,12 +1,17 @@
 import Carbon
+import KaedeCore
 
 /// Kaede acts only while the Roman (英字) input source is selected.
 enum InputSourceGuard {
     static let romanID = "com.apple.inputmethod.Kotoeri.RomajiTyping.Roman"
 
     /// Queried on every key rather than cached from change notifications, so it can never go stale.
-    static func isRomanSelected() -> Bool {
-        currentID() == romanID
+    static func current() -> InputSource {
+        switch currentID() {
+        case romanID: .roman
+        case InputSourceSwitcher.azooKeyID: .azooKey
+        default: .other
+        }
     }
 
     static func currentID() -> String? {

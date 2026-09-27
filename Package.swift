@@ -31,10 +31,7 @@ let package = Package(
         // イベントタップを持つ常駐プロセス本体。
         .executableTarget(
             name: "Kaede",
-            dependencies: ["KaedeCore", "KaedeConverter", "KaedeRemote"],
-            swiftSettings: cxxInterop,
-            // just bundle puts llama.framework (linked through the Zenzai trait) in Contents/Frameworks
-            linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]
+            dependencies: ["KaedeCore", "KaedeRemote"]
         ),
         // Claude と Jev に問い合わせる部分（送る内容の組み立てと応答の読み取り）。
         .target(

@@ -2,34 +2,32 @@ import AppKit
 import KaedeCore
 import KaedeRemote
 
-/// The session event tap: feeds key and mouse events to the engine and carries out its decisions.
+/// The session event tap: feeds keys and clicks to the engine, asks Jev what it asks for, and
+/// carries out the switches it decides.
 @MainActor
 final class EventTap {
-    private let engine: KeyEngine
-    /// The engine's planner, reused to find other splits when building candidates.
-    private let planner: EnterPlanner
-    private let converter: any KanaKanjiConverting
-    /// Asks Jev about doubtful words; nil when no Jev key is stored.
-    private let jev: Jev?
+    private let engine: SwitchEngine
+    private let jev: JevSwitchRequest
     private let transport = URLSessionTransport()
     private let poster = EventPoster()
+    private let pauseSound: NSSound
     private var machPort: CFMachPort?
+    private var health = QueryHealth()
+    /// Wakes the engine when a pause would settle the latest answer.
+    private var pauseTimer: Task<Void, Never>?
+    private var timerDeadline: ContinuousClock.Instant?
+    /// Totals for the log.
+    private var questionsAnswered = 0
+    private var inputTokens = 0
 
-    /// Candidates offered after a conversion.
-    private static let candidateLimit = 8
-    /// Splits tried per token for the candidates' other splits.
-    private static let splitsPerToken = 3
-    /// No answer from Jev by then leaves the word as typed (spec, chapter 4).
-    nonisolated private static let languageTimeout: Duration = .seconds(2)
-
-    init(planner: EnterPlanner, converter: any KanaKanjiConverting, jev: Jev?, wordLog: WordLog?) {
-        self.engine = KeyEngine(planner: planner, asksLanguage: jev != nil)
-        if let wordLog {
-            engine.recordWord = { wordLog.append($0) }
-        }
-        self.planner = planner
-        self.converter = converter
+    init(engine: SwitchEngine, jev: JevSwitchRequest) {
+        self.engine = engine
         self.jev = jev
+        // A system sound unlike the failure beep
+        guard let sound = NSSound(named: "Tink") else {
+            terminate("The system sound Tink is missing.")
+        }
+        pauseSound = sound
     }
 
     func start() {
@@ -50,12 +48,19 @@ final class EventTap {
         CGEvent.tapEnable(tap: port, enable: true)
     }
 
-    func discardRun() {
-        engine.discardRun()
+    /// A click or another app: the caret may be anywhere now.
+    func caretMoved() {
+        apply(engine.caretMoved())
+    }
+
+    func inputSourceChanged() {
+        log.info("The input source changed.")
+        engine.inputSourceChanged()
+        rescheduleTimer()
     }
 
     /// Returns whether the event goes on to the apps.
-    fileprivate func handle(_ type: CGEventType, _ event: CGEvent) -> Bool {
+    fileprivate func handle(_ type: CGEventType, _ event: CGEvent, proxy: CGEventTapProxy) -> Bool {
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
             // The system turns off a tap that answers too slowly; turn it straight back on.
@@ -63,235 +68,117 @@ final class EventTap {
             if let machPort { CGEvent.tapEnable(tap: machPort, enable: true) }
             return true
         case .keyDown:
-            return handleKeyDown(event)
+            return handleKeyDown(event, proxy: proxy)
         default:
-            discardRun()
+            caretMoved()
             return true
         }
     }
 
-    private func handleKeyDown(_ event: CGEvent) -> Bool {
+    private func handleKeyDown(_ event: CGEvent, proxy: CGEventTapProxy) -> Bool {
         let key = CGEventBridge.rawKey(from: event)
-        log.debug("keyDown received (Kaede's own: \(key.isKaedeEvent, privacy: .public))")
         if !key.isKaedeEvent, SecureInput.isEnabled {
             log.info("Skipped: secure input is on.")
-            engine.discardRun()
+            caretMoved()
             return true
         }
-        // After a hand-off azooKey is selected, so its keys pass untouched until the user
-        // switches back to English
-        if !key.isKaedeEvent, !InputSourceGuard.isRomanSelected() {
-            log.info("Skipped: input source is \(InputSourceGuard.currentID() ?? "unknown", privacy: .public).")
-            engine.discardRun()
-            return true
-        }
-        // Enter and Space end the run and are planned inside this callback, so time them
-        let endsRun = [36, 76, 49].contains(key.keyCode)
-        let clock = ContinuousClock()
-        let started = clock.now
-        let response = engine.handle(key)
-        if endsRun {
-            let (seconds, attoseconds) = (clock.now - started).components
-            let microseconds = seconds * 1_000_000 + attoseconds / 1_000_000_000_000
-            log.info("Planned in \(microseconds, privacy: .public) µs.")
-        }
-        switch response {
+        let (action, reaction) = engine.handle(key, source: InputSourceGuard.current(), at: .now)
+        apply(reaction)
+        switch action {
         case .pass:
-            if endsRun { log.info("Run passed through.") }
             return true
         case .suppress:
             return false
-        case let .replace(replacement):
-            log.info("Run converts: deleting \(replacement.deleteCount, privacy: .public) characters.")
-            // Replace after the callback returns, so the tap is not held up by the conversion.
-            DispatchQueue.main.async { self.replace(replacement) }
-            return false
-        case let .handOff(handOff):
-            log.info("Hands \(handOff.romaji.count, privacy: .public) romaji characters to azooKey.")
-            Task { await self.handOff(handOff) }
-            return false
-        case let .rewrite(deleteCount, text):
-            log.info("Rewrites \(deleteCount, privacy: .public) characters with a candidate or the typed text.")
-            DispatchQueue.main.async { self.rewrite(deleteCount: deleteCount, text: text) }
-            return false
-        case let .askLanguage(question):
-            log.info("Asks Jev the language of a doubtful word.")
-            Task { await self.askLanguage(question) }
-            return false
-        case let .askSpacing(question):
-            log.info("Asks Jev whether to respace a word.")
-            Task { await self.askSpacing(question) }
+        case let .remap(keyCode):
+            poster.remap(keyCode: keyCode, flags: CGEventBridge.flags(of: key), proxy: proxy)
             return false
         }
     }
 
-    private func replace(_ replacement: Replacement) {
+    private func apply(_ reaction: Reaction) {
+        if let word = reaction.finishedWord {
+            log.info("Word finished: rule \(word.rule.rawValue, privacy: .public), Jev \(word.jev.rawValue, privacy: .public), \(word.agrees ? "agree" : "disagree", privacy: .public).")
+        }
+        if reaction.paused {
+            pauseSound.play()
+            log.notice("Paused until Enter.")
+        }
+        if let question = reaction.question {
+            Task { await ask(question) }
+        }
+        if let order = reaction.switchOrder {
+            Task { await perform(order) }
+        }
+        rescheduleTimer()
+    }
+
+    private func ask(_ question: Question) async {
+        // Kaede asks only while the Roman source is selected
+        let request = jev.urlRequest(
+            question: question,
+            application: NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
+            inputSource: InputSourceGuard.romanID
+        )
         do {
-            let text = try replacement.text(using: converter)
-            poster.deleteBackward(replacement.deleteCount)
-            poster.type(text + replacement.suffix)
-            log.info("Replaced with \(text.count, privacy: .public) characters.")
+            let (data, status) = try await transport.send(request)
+            let (judgment, tokens) = try JevSwitchResponse.read(data, status: status, offered: question.options)
+            questionsAnswered += 1
+            inputTokens += tokens
+            log.info("Jev answered \(judgment.answer.rawValue, privacy: .public) (\(judgment.confidence, privacy: .public)) about \(question.keys.count, privacy: .public) keys; \(self.questionsAnswered, privacy: .public) answers, \(self.inputTokens, privacy: .public) input tokens so far.")
+            health.succeeded()
+            apply(engine.receive(judgment, to: question.id, at: .now))
+        } catch JevError.unauthorized {
+            terminate("Jev rejected the API key (401). Store a valid one with `just set-key jev`, then start Kaede again.")
         } catch {
-            // The run stays on screen as typed. The space that triggered the conversion is still
-            // typed; a swallowed Enter is not sent.
-            log.error("Conversion failed: \(error)")
+            log.error("Asking Jev failed: \(error)")
+            if health.failed() {
+                NSSound.beep()
+            }
+            engine.questionFailed(question.id)
+        }
+    }
+
+    /// Selects azooKey, then replaces the word's keys on screen with its romaji typed into azooKey.
+    /// Switching first means a failed switch leaves the word as typed.
+    private func perform(_ order: SwitchOrder) async {
+        guard await InputSourceSwitcher.select(InputSourceSwitcher.azooKeyID) else {
+            log.error("Switching to azooKey failed; the word stays as typed.")
             NSSound.beep()
-            poster.type(replacement.suffix)
-            finishReplacement(candidates: [])
+            replay(engine.switchFailed())
             return
         }
-        // Built after the conversion is on screen, so it does not delay it
-        do {
-            finishReplacement(candidates: try timedCandidates(for: replacement))
-        } catch {
-            log.error("Building candidates failed, so this conversion cannot be stepped through: \(error)")
-            finishReplacement(candidates: [])
-        }
+        poster.deleteBackward(order.deleteCount)
+        poster.typeKeys(order.romaji)
+        log.info("Switched a word of \(order.deleteCount, privacy: .public) keys to azooKey as \(order.answer.rawValue, privacy: .public).")
+        replay(engine.switchSucceeded())
     }
 
-    private func finishReplacement(candidates: [String]) {
-        for key in engine.finishReplacement(candidates: candidates) {
+    /// Posts held keys again, unmarked, so they come back through the tap in their order.
+    private func replay(_ keys: [RawKey]) {
+        for key in keys {
             poster.replay(key)
         }
     }
 
-    private func timedCandidates(for replacement: Replacement) throws -> [String] {
-        // English that was only respaced has one reading; Escape can still undo it
-        if !replacement.pieces.contains(where: { if case .romaji = $0 { true } else { false } }) {
-            return [try replacement.text(using: converter)]
+    /// Keeps one timer, set for the engine's deadline.
+    private func rescheduleTimer() {
+        let deadline = engine.deadline
+        guard deadline != timerDeadline else { return }
+        pauseTimer?.cancel()
+        timerDeadline = deadline
+        guard let deadline else {
+            pauseTimer = nil
+            return
         }
-        let clock = ContinuousClock()
-        let started = clock.now
-        let alternatives = planner.alternatives(for: Run(typing: replacement.typed), perToken: Self.splitsPerToken)
-        let candidates = try replacement.candidates(using: converter, alternatives: alternatives, limit: Self.candidateLimit)
-        log.info("Built \(candidates.count, privacy: .public) candidates in \(clock.now - started, privacy: .public).")
-        return candidates
-    }
-
-    /// Settles the parts before the last Japanese part, switches to azooKey and types that part
-    /// into it with the Space that converts it. When switching fails, the part stays as typed.
-    private func handOff(_ handOff: HandOff) async {
-        if !handOff.settled.isEmpty {
-            let settled: String
+        pauseTimer = Task {
             do {
-                settled = try Replacement(typed: handOff.typed, pieces: handOff.settled).text(using: converter)
+                try await Task.sleep(until: deadline, clock: .continuous)
             } catch {
-                log.error("Conversion before the hand-off failed: \(error)")
-                failHandOff()
+                // Cancelled: a later deadline took this one's place
                 return
             }
-            poster.deleteBackward(handOff.typed.count)
-            poster.type(settled + handOff.typedTail)
-            await InputSourceSwitcher.pause(InputSourceSwitcher.settleDelay)
-        }
-        guard await InputSourceSwitcher.select(InputSourceSwitcher.azooKeyID) else {
-            failHandOff()
-            return
-        }
-        poster.deleteBackward(handOff.typedTail.count)
-        poster.typeKeys(handOff.romaji)
-        poster.press(49)  // Space: azooKey converts and shows its candidates
-        for key in engine.finishHandOff() {
-            poster.replay(key)
-        }
-    }
-
-    /// The keys stay as typed; the Space that triggered the hand-off is still typed.
-    private func failHandOff() {
-        NSSound.beep()
-        poster.type(" ")
-        for key in engine.finishHandOff() {
-            poster.replay(key)
-        }
-    }
-
-    /// Asks Jev the language of a word, then carries out what the engine decides.
-    private func askLanguage(_ question: LanguageQuestion) async {
-        let request = setUpJev.language.urlRequest(question: question, application: Self.frontmostApplication)
-        let answer = await timedAnswer(to: request, kind: "language", failed: LanguageAnswer.failed) { data, status in
-            try JevLanguageResponse.answer(from: data, status: status)
-        }
-        carryOut(engine.answerLanguage(answer), failed: answer == .failed)
-    }
-
-    /// Asks Jev whether to respace a word, then carries out what the engine decides.
-    private func askSpacing(_ question: SpacingQuestion) async {
-        let request = setUpJev.spacing.urlRequest(question: question, application: Self.frontmostApplication)
-        let answer = await timedAnswer(to: request, kind: "spacing", failed: SpacingAnswer.failed) { data, status in
-            try JevSpacingResponse.answer(from: data, status: status)
-        }
-        carryOut(engine.answerSpacing(answer), failed: answer == .failed)
-    }
-
-    private var setUpJev: Jev {
-        guard let jev else {
-            preconditionFailure("the engine asks only when Jev is set up")
-        }
-        return jev
-    }
-
-    private static var frontmostApplication: String {
-        NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "unknown"
-    }
-
-    private func carryOut(_ response: KeyResponse, failed: Bool) {
-        if failed {
-            NSSound.beep()
-        }
-        switch response {
-        case let .replace(replacement):
-            replace(replacement)
-        case let .handOff(handOff):
-            Task { await self.handOff(handOff) }
-        case let .rewrite(deleteCount, text):
-            rewrite(deleteCount: deleteCount, text: text)
-        case .pass, .suppress, .askLanguage, .askSpacing:
-            preconditionFailure("an answer settles the word with an action")
-        }
-    }
-
-    /// Jev's answer read by `read`, or `failed` on an error or after `languageTimeout`.
-    private func timedAnswer<Answer: Sendable & Equatable>(
-        to request: URLRequest, kind: String, failed: Answer,
-        read: @escaping @Sendable (Data, Int) throws -> Answer
-    ) async -> Answer {
-        let transport = self.transport
-        let clock = ContinuousClock()
-        let started = clock.now
-        let answer = await withTaskGroup(of: Answer.self) { group in
-            group.addTask {
-                do {
-                    let (data, status) = try await transport.send(request)
-                    return try read(data, status)
-                } catch {
-                    log.error("Asking Jev (\(kind, privacy: .public)) failed: \(error)")
-                    return failed
-                }
-            }
-            group.addTask {
-                do {
-                    try await Task.sleep(for: Self.languageTimeout)
-                    log.error("Jev did not answer within \(Self.languageTimeout, privacy: .public).")
-                } catch {
-                    // Cancelled because Jev answered first; that answer is the one used
-                }
-                return failed
-            }
-            guard let first = await group.next() else {
-                preconditionFailure("the group has two tasks")
-            }
-            group.cancelAll()
-            return first
-        }
-        log.info("Jev answered the \(kind, privacy: .public) question with \(String(describing: answer), privacy: .public) in \(clock.now - started, privacy: .public).")
-        return answer
-    }
-
-    private func rewrite(deleteCount: Int, text: String) {
-        poster.deleteBackward(deleteCount)
-        poster.type(text)
-        for key in engine.finishRewrite() {
-            poster.replay(key)
+            timerDeadline = nil
+            apply(engine.tick(at: .now))
         }
     }
 }
@@ -303,8 +190,9 @@ private func tapCallback(
     // thread and nothing is actually sent across threads.
     nonisolated(unsafe) let event = event
     nonisolated(unsafe) let userInfo = userInfo
+    nonisolated(unsafe) let proxy = proxy
     let passes = MainActor.assumeIsolated {
-        Unmanaged<EventTap>.fromOpaque(userInfo!).takeUnretainedValue().handle(type, event)
+        Unmanaged<EventTap>.fromOpaque(userInfo!).takeUnretainedValue().handle(type, event, proxy: proxy)
     }
     return passes ? Unmanaged.passUnretained(event) : nil
 }

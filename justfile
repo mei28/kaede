@@ -4,9 +4,6 @@
 # 署名に使う自己署名証明書（キーチェーンアクセスで作成したもの）
 signing_identity := "Kaede Code Signing"
 
-# SwiftPM が取得した azooKey の変換辞書（テストもここを読む）
-dictionary := ".build/checkouts/AzooKeyKanaKanjiConverter/Sources/KanaKanjiConverterModuleWithDefaultDictionary/azooKey_dictionary_storage/Dictionary"
-
 # デフォルト: レシピ一覧表示
 default:
     @just --list
@@ -26,13 +23,8 @@ bundle:
     mkdir -p dist/Kaede.app/Contents/MacOS dist/Kaede.app/Contents/Resources
     cp .build/release/Kaede dist/Kaede.app/Contents/MacOS/Kaede
     cp Packaging/Info.plist dist/Kaede.app/Contents/Info.plist
-    # 変換辞書（Kaede は Contents/Resources/Dictionary から読む）
-    cp -R {{dictionary}} dist/Kaede.app/Contents/Resources/Dictionary
-    # 英単語のリスト（/usr/share/dict/words に足りない活用形や固有の語を補う）
+    # 英単語のリスト（/usr/share/dict/words に足りない活用形や固有の語を補う。辞書の規則のログに使う）
     cp Resources/en10k.txt Resources/extra-words.txt dist/Kaede.app/Contents/Resources/
-    # Zenzai の trait で結びつく llama.cpp（署名済みの framework をそのまま入れる）
-    mkdir -p dist/Kaede.app/Contents/Frameworks
-    cp -R .build/release/llama.framework dist/Kaede.app/Contents/Frameworks/
     codesign --force --sign "{{signing_identity}}" --identifier com.mei28.kaede dist/Kaede.app
     @echo "dist/Kaede.app を作成しました（just run で起動）"
 
