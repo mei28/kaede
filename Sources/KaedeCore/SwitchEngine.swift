@@ -19,6 +19,14 @@ public struct Question: Equatable, Sendable {
     public var textBefore: String
     /// The answers Jev may choose from.
     public var options: [Answer]
+
+    public init(id: Int, keys: String, ebiReading: String, textBefore: String, options: [Answer]) {
+        self.id = id
+        self.keys = keys
+        self.ebiReading = ebiReading
+        self.textBefore = textBefore
+        self.options = options
+    }
 }
 
 /// How to switch the word to azooKey: delete what its keys put on screen, select azooKey, and

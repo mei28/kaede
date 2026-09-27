@@ -12,6 +12,8 @@ public enum JevError: Error, Equatable {
     case http(status: Int, body: String)
     /// The answer named an option that was not offered.
     case unknownChoice(String)
+    /// The answer's confidence was not between 0 and 1.
+    case unexpectedConfidence(Double)
 }
 
 /// Reading Jev (TypeSafe) responses.

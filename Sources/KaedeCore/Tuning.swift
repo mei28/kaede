@@ -22,4 +22,6 @@ public enum Tuning {
     public static let textBeforeLimit = 240
     /// Questions waiting for an answer at once. More are not asked; the next key asks again.
     public static let questionsInFlight = 4
+    /// A question without an answer by then has failed.
+    public static let jevTimeout: Duration = .seconds(2)
 }
