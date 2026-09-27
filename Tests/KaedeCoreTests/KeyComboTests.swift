@@ -51,10 +51,8 @@ import Testing
         _ = try keys("cmd+shift+k", "cmd+enter")
     }
 
-    @Test func theKeysMustDifferAndStayOffThePauseKey() {
+    @Test func theKeysMustDiffer() {
         #expect(throws: FormKeysError.sameKeys) { try keys("ctrl+alt+k", "ctrl+alt+k") }
-        #expect(throws: FormKeysError.takenByPause) { try keys("ctrl+alt+p", "cmd+enter") }
-        #expect(throws: FormKeysError.takenByPause) { try keys("ctrl+alt+k", "ctrl+alt+p") }
     }
 
     @Test func enterAloneCannotInsert() {

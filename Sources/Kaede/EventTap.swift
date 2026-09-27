@@ -10,7 +10,6 @@ final class EventTap {
     private let jev: JevSwitchRequest
     private let transport = URLSessionTransport()
     private let poster = EventPoster()
-    private let pauseSound: NSSound
     private var machPort: CFMachPort?
     private var health = QueryHealth()
     /// Wakes the engine when a pause would settle the latest answer.
@@ -25,11 +24,6 @@ final class EventTap {
     init(engine: SwitchEngine, jev: JevSwitchRequest) {
         self.engine = engine
         self.jev = jev
-        // A system sound unlike the failure beep
-        guard let sound = NSSound(named: "Tink") else {
-            terminate("The system sound Tink is missing.")
-        }
-        pauseSound = sound
     }
 
     func start() {
@@ -109,10 +103,6 @@ final class EventTap {
     private func apply(_ reaction: Reaction) {
         if let word = reaction.finishedWord {
             log.info("Word finished: rule \(word.rule.rawValue, privacy: .public), Jev \(word.jev.rawValue, privacy: .public), \(word.agrees ? "agree" : "disagree", privacy: .public).")
-        }
-        if reaction.paused {
-            pauseSound.play()
-            log.notice("Paused until Enter.")
         }
         if let question = reaction.question {
             Task { await ask(question) }

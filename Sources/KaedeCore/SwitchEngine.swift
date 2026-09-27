@@ -68,8 +68,6 @@ public struct Reaction: Equatable, Sendable {
     public var question: Question?
     /// Switch the word to azooKey.
     public var switchOrder: SwitchOrder?
-    /// The user just paused Kaede: play the pause sound.
-    public var paused: Bool
     /// A word of at least `minimumStrokes` keys finished.
     public var finishedWord: WordOutcome?
     /// Enter committed the Japanese in Kaede's azooKey: select the Roman source again, then call
@@ -77,12 +75,11 @@ public struct Reaction: Equatable, Sendable {
     public var switchBack: Bool
 
     public init(
-        question: Question? = nil, switchOrder: SwitchOrder? = nil, paused: Bool = false,
+        question: Question? = nil, switchOrder: SwitchOrder? = nil,
         finishedWord: WordOutcome? = nil, switchBack: Bool = false
     ) {
         self.question = question
         self.switchOrder = switchOrder
-        self.paused = paused
         self.finishedWord = finishedWord
         self.switchBack = switchBack
     }
@@ -112,9 +109,6 @@ public final class SwitchEngine {
     private var textBefore = ""
     private var state = State.watching
 
-    /// Paused with ctrl+alt+p: nothing is asked or remembered until Enter, a moved caret, or the
-    /// key again. For a password typed where the field is not a secure one (a terminal).
-    private var paused = false
 
     private enum State {
         /// Following the word typed with the Roman source.
@@ -147,14 +141,6 @@ public final class SwitchEngine {
         if key.isKaedeEvent {
             return (.pass, Reaction())
         }
-        if Self.isPauseKey(key), !isSwitching {
-            paused.toggle()
-            startWord()
-            return (.suppress, Reaction(paused: paused))
-        }
-        if KeyCode.enter.contains(key.keyCode) {
-            paused = false
-        }
         switch state {
         case .watching:
             break
@@ -180,9 +166,6 @@ public final class SwitchEngine {
         guard source == .roman else {
             // Another source (azooKey switched by hand, say) types into the field meanwhile
             return (.pass, Reaction(finishedWord: forgetText()))
-        }
-        if paused {
-            return (.pass, Reaction())
         }
         return (.pass, watch(key, at: instant))
     }
@@ -271,8 +254,7 @@ public final class SwitchEngine {
 
     /// A click or another app: the caret may be anywhere now.
     public func caretMoved() -> Reaction {
-        paused = false
-        return Reaction(finishedWord: forgetText())
+        Reaction(finishedWord: forgetText())
     }
 
     /// Updates the word for a key typed with the Roman source: a question to ask, or the word
@@ -314,10 +296,6 @@ public final class SwitchEngine {
         let outcome = endWord()
         remember(String(character))
         return Reaction(finishedWord: outcome)
-    }
-
-    private static func isPauseKey(_ key: RawKey) -> Bool {
-        key.keyCode == KeyPosition.p.keyCode && key.control && key.option && !key.command
     }
 
     /// Moving a word to azooKey or English back: Kaede is typing into the app, and its keys wait.

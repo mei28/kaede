@@ -104,8 +104,6 @@ public enum KeyComboError: Error, Equatable {
 public struct FormKeys: Equatable, Sendable {
     public static let defaultOpen = "ctrl+alt+k"
     public static let defaultInsert = "cmd+enter"
-    /// Pauses Kaede (SwitchEngine); neither form key may take it.
-    static let pause = KeyCombo(keyCode: KeyPosition.p.keyCode, modifiers: [.control, .option])
 
     public let open: KeyCombo
     public let insert: KeyCombo
@@ -117,9 +115,6 @@ public struct FormKeys: Equatable, Sendable {
         }
         guard open != insert else {
             throw FormKeysError.sameKeys
-        }
-        guard open != Self.pause, insert != Self.pause else {
-            throw FormKeysError.takenByPause
         }
         // Enter makes new lines in the form
         guard !(insert.keyCode == 36 && insert.modifiers.isEmpty) else {
@@ -133,6 +128,5 @@ public struct FormKeys: Equatable, Sendable {
 public enum FormKeysError: Error, Equatable {
     case openNeedsControlOrCommand
     case sameKeys
-    case takenByPause
     case plainEnterInserts
 }
