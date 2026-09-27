@@ -48,6 +48,16 @@ final class EventTap {
         CGEvent.tapEnable(tap: port, enable: true)
     }
 
+    /// Kaede is typing into the app to move a word to azooKey or English back.
+    var isSwitching: Bool {
+        engine.isSwitching
+    }
+
+    /// Kaede reads keys through a layout in the azooKey it switched to.
+    var isRemapping: Bool {
+        engine.isRemapping
+    }
+
     /// A click or another app: the caret may be anywhere now.
     func caretMoved() {
         apply(engine.caretMoved())

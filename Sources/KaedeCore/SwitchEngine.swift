@@ -320,11 +320,17 @@ public final class SwitchEngine {
         key.keyCode == KeyPosition.p.keyCode && key.control && key.option && !key.command
     }
 
-    private var isSwitching: Bool {
+    /// Moving a word to azooKey or English back: Kaede is typing into the app, and its keys wait.
+    public var isSwitching: Bool {
         switch state {
         case .switching, .switchingBack: true
         case .watching, .remapping: false
         }
+    }
+
+    /// Reading keys through a layout in the azooKey Kaede switched to.
+    public var isRemapping: Bool {
+        if case .remapping = state { true } else { false }
     }
 
     /// What azooKey gets for a key: the key read in the layout. The text before follows along.

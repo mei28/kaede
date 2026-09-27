@@ -87,3 +87,19 @@ import Testing
         #expect(engine.type("kor", at: t0).map(\.textBefore) == ["tatoeba "])
     }
 }
+
+@Suite struct SwitchEngineStateTests {
+    let t0 = ContinuousClock.now
+
+    @Test func tellsWhetherItIsSwitchingOrRemapping() {
+        let engine = SwitchEngine(rule: .forTests)
+        #expect(!engine.isSwitching && !engine.isRemapping)
+        let question = engine.type("jaj", at: t0)[0]
+        _ = engine.receive(Judgment(answer: .japaneseEbi, confidence: 0.95), to: question.id, at: t0)
+        #expect(engine.isSwitching && !engine.isRemapping)
+        _ = engine.switchSucceeded()
+        #expect(!engine.isSwitching && engine.isRemapping)
+        _ = engine.handle(.enter, source: .azooKey, at: t0)
+        #expect(engine.isSwitching && !engine.isRemapping)
+    }
+}

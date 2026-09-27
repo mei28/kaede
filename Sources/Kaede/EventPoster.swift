@@ -6,10 +6,12 @@ struct EventPoster {
     /// "KAED" in ASCII, stored in kCGEventSourceUserData.
     static let marker: Int64 = 0x4B41_4544
 
-    /// CGEventKeyboardSetUnicodeString takes at most 20 UTF-16 units per event.
-    private static let maxUnitsPerEvent = 20
     private static let backspaceKeyCode: CGKeyCode = 51
     private static let hyphenKeyCode: CGKeyCode = 27
+    private static let returnKeyCode: CGKeyCode = 36
+    /// The key code Unicode text events carry. Not 0: Hammerspoon's Ebi remapping rebuilds a
+    /// key-0 event as a bare "a" and drops the text. espanso uses Space too.
+    private static let unicodeKeyCode: CGKeyCode = 49
 
     private let markedSource: CGEventSource
 
@@ -28,16 +30,21 @@ struct EventPoster {
         }
     }
 
-    func type(_ text: String) {
+    /// Types one piece of text (at most `TypingPlan.maxUnitsPerPiece` UTF-16 units) as a
+    /// Unicode key event, marked.
+    func typePiece(_ text: String) {
         let units = Array(text.utf16)
-        for start in stride(from: 0, to: units.count, by: Self.maxUnitsPerEvent) {
-            let chunk = Array(units[start..<min(start + Self.maxUnitsPerEvent, units.count)])
-            for keyDown in [true, false] {
-                let event = makeEvent(0, keyDown: keyDown, flags: [], source: markedSource)
-                event.keyboardSetUnicodeString(stringLength: chunk.count, unicodeString: chunk)
-                event.post(tap: .cgSessionEventTap)
-            }
+        precondition(units.count <= TypingPlan.maxUnitsPerPiece, "a piece longer than a key event carries")
+        for keyDown in [true, false] {
+            let event = makeEvent(Self.unicodeKeyCode, keyDown: keyDown, flags: [], source: markedSource)
+            event.keyboardSetUnicodeString(stringLength: units.count, unicodeString: units)
+            event.post(tap: .cgSessionEventTap)
         }
+    }
+
+    /// A line break chat apps and Claude Code do not take for sending: Shift+Enter, marked.
+    func newline() {
+        postKey(Self.returnKeyCode, flags: .maskShift, source: markedSource)
     }
 
     /// Presses the QWERTY keys that spell `romaji` (letters, "," "." and "-"), marked, so an

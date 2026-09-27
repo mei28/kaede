@@ -6,6 +6,7 @@ guard let resources = Bundle.main.resourceURL else {
     terminate("Kaede must run from its .app bundle (just run).")
 }
 Startup.verify()
+let formKeys = FormSettings.load()
 
 // The dictionary rule only feeds the log, next to Jev's answers
 let lexicon: EnglishLexicon
@@ -37,6 +38,10 @@ NSWorkspace.shared.notificationCenter.addObserver(
     MainActor.assumeIsolated { tap.caretMoved() }
 }
 let inputSourceWatcher = InputSourceWatcher { tap.inputSourceChanged() }
+
+InputForm.installEditMenu()
+let inputForm = InputForm(keys: formKeys, tap: tap)
+let formHotKey = HotKey(formKeys.open) { inputForm.toggle() }
 
 log.notice("Kaede started.")
 NSApplication.shared.run()

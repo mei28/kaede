@@ -45,6 +45,12 @@ eval:
 add-word word:
     @grep -qxi "{{word}}" Resources/extra-words.txt && echo "{{word}} はもう入っています" || (echo "{{word}}" >> Resources/extra-words.txt && echo "{{word}} を足しました。just bundle で作り直すと反映されます")
 
+# 入力フォームのキーを変える（which: open か insert、combo: ctrl+alt+k のように書く。反映は just restart）
+form-key which combo:
+    @test "{{which}}" = open -o "{{which}}" = insert || (echo "which は open か insert" && exit 1)
+    defaults write com.mei28.kaede {{ if which == "open" { "formOpenKey" } else { "formInsertKey" } }} -string "{{combo}}"
+    @echo "just restart で反映されます"
+
 # 作り直さずに Kaede を起動し直す（許可は外れない）
 restart:
     pkill -x Kaede || true
