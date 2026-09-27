@@ -49,15 +49,17 @@ import Testing
         #expect(engine.type("aj", at: t0).map(\.keys) == ["jaj"])
     }
 
-    @Test func aSwitchByAnyoneElseEndsTheRemapping() {
+    @Test func leavingAzooKeyEndsTheRemapping() {
         let engine = switchingEngine()
-        // Kaede's own switch to azooKey, even when it is reported before the switch is done
-        engine.inputSourceChanged()
+        // Kaede's own switch sends several notifications, before and after it is done
+        engine.inputSourceChanged(to: .azooKey)
         _ = engine.switchSucceeded()
+        engine.inputSourceChanged(to: .azooKey)
+        engine.inputSourceChanged(to: .azooKey)
         #expect(engine.handle(.typing("j"), source: .azooKey, at: t0).0 == .remap(keyCode: KeyPosition.t.keyCode))
         // Left cmd then right cmd: azooKey again, now with Hammerspoon's own remapping
-        engine.inputSourceChanged()
-        engine.inputSourceChanged()
+        engine.inputSourceChanged(to: .roman)
+        engine.inputSourceChanged(to: .azooKey)
         #expect(engine.handle(.typing("j"), source: .azooKey, at: t0) == (.pass, Reaction()))
     }
 

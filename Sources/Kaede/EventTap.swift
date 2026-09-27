@@ -54,8 +54,7 @@ final class EventTap {
     }
 
     func inputSourceChanged() {
-        log.info("The input source changed.")
-        engine.inputSourceChanged()
+        engine.inputSourceChanged(to: InputSourceGuard.current())
         rescheduleTimer()
     }
 

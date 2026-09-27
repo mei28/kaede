@@ -108,8 +108,6 @@ public final class SwitchEngine {
     /// Paused with ctrl+alt+p: nothing is asked or remembered until Enter, a moved caret, or the
     /// key again. For a password typed where the field is not a secure one (a terminal).
     private var paused = false
-    /// Notifications of input source changes that Kaede's own switch will cause.
-    private var ownSwitchNotifications = 0
 
     private enum State {
         /// Following the word typed with the Roman source.
@@ -207,7 +205,6 @@ public final class SwitchEngine {
         guard case let .switching(_, held) = state else {
             preconditionFailure("switchFailed while not switching")
         }
-        ownSwitchNotifications = 0
         // Reported already when the switch was decided
         remember(word.screenText)
         startWord()
@@ -215,14 +212,12 @@ public final class SwitchEngine {
         return held
     }
 
-    /// The selected input source changed. Apart from Kaede's own switch, the user switched (left
-    /// cmd, or Hammerspoon's right cmd with its own remapping), so Kaede stops remapping.
-    public func inputSourceChanged() {
-        if ownSwitchNotifications > 0 {
-            ownSwitchNotifications -= 1
-            return
-        }
-        if case .remapping = state {
+    /// The selected input source changed, and `source` is selected now. Leaving azooKey (left cmd,
+    /// Escape) ends the remapping, so a later right cmd leaves the keys to Hammerspoon's own
+    /// remapping. One switch sends several notifications, Kaede's own included, so they are told
+    /// apart by the source rather than counted.
+    public func inputSourceChanged(to source: InputSource) {
+        if case .remapping = state, source != .azooKey {
             state = .watching
             startWord()
         }
@@ -328,7 +323,6 @@ public final class SwitchEngine {
               let layout = answer.layout, AskRule.options(for: word)?.contains(answer) == true
         else { return Reaction() }
         state = .switching(answer, held: [])
-        ownSwitchNotifications = 1
         return Reaction(
             switchOrder: SwitchOrder(answer: answer, deleteCount: word.screenText.count, romaji: word.reading(in: layout)),
             finishedWord: WordOutcome(rule: rule.judge(word), jev: answer)
