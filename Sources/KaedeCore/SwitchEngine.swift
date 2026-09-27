@@ -115,10 +115,10 @@ public final class SwitchEngine {
         case watching
         /// The word goes to azooKey; keys pressed meanwhile wait.
         case switching(Answer, held: [RawKey])
-        /// azooKey takes the keys, read in the layout of the word Kaede switched.
-        case remapping(Layout)
+        /// azooKey takes the keys, read in the layout of the answer Kaede switched on.
+        case remapping(Answer)
         /// Enter committed the Japanese and the Roman source is coming back; keys wait.
-        case switchingBack(Layout, held: [RawKey])
+        case switchingBack(Answer, held: [RawKey])
     }
 
     /// - Parameters:
@@ -148,13 +148,16 @@ public final class SwitchEngine {
             // Keys typed before the word is in azooKey would land in the wrong place
             state = .switching(answer, held: held + [key])
             return (.suppress, Reaction())
-        case let .switchingBack(layout, held):
-            state = .switchingBack(layout, held: held + [key])
+        case let .switchingBack(answer, held):
+            state = .switchingBack(answer, held: held + [key])
             return (.suppress, Reaction())
-        case let .remapping(layout):
+        case let .remapping(answer):
+            guard let layout = answer.layout else {
+                preconditionFailure("remapping on \(answer), which has no layout")
+            }
             if source == .azooKey, KeyCode.enter.contains(key.keyCode) {
                 // azooKey commits with this Enter; English comes back after it
-                state = .switchingBack(layout, held: [])
+                state = .switchingBack(answer, held: [])
                 return (.pass, Reaction(switchBack: true))
             }
             if source == .azooKey {
@@ -199,7 +202,7 @@ public final class SwitchEngine {
         }
         remember(word.reading(in: layout))
         startWord()
-        state = .remapping(layout)
+        state = .remapping(answer)
         return held
     }
 
@@ -228,10 +231,10 @@ public final class SwitchEngine {
 
     /// The Roman source could not be selected: azooKey keeps the keys. Returns the keys held meanwhile.
     public func switchBackFailed() -> [RawKey] {
-        guard case let .switchingBack(layout, held) = state else {
+        guard case let .switchingBack(answer, held) = state else {
             preconditionFailure("switchBackFailed while not switching back")
         }
-        state = .remapping(layout)
+        state = .remapping(answer)
         return held
     }
 
@@ -308,7 +311,12 @@ public final class SwitchEngine {
 
     /// Reading keys through a layout in the azooKey Kaede switched to.
     public var isRemapping: Bool {
-        if case .remapping = state { true } else { false }
+        remappingAnswer != nil
+    }
+
+    /// The Japanese answer whose layout Kaede reads keys through in its azooKey, if it does.
+    public var remappingAnswer: Answer? {
+        if case let .remapping(answer) = state { answer } else { nil }
     }
 
     /// What azooKey gets for a key: the key read in the layout. The text before follows along.

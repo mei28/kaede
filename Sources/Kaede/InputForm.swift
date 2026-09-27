@@ -1,5 +1,6 @@
 import AppKit
 import KaedeCore
+import SwiftUI
 
 /// Kaede's window for writing: opened over the app in front, it puts its text into that app.
 /// Kaede judges only the keys typed here.
@@ -16,6 +17,7 @@ final class InputForm {
     private let poster = EventPoster()
     private let panel: FormPanel
     private let textView: NSTextView
+    private let model: FormModel
     /// The app in front when the form opened: the text goes there.
     private var target: NSRunningApplication?
     /// azooKey was selected by hand (with Hammerspoon's Ebi remapping) when the form opened, and
@@ -27,11 +29,16 @@ final class InputForm {
         self.keys = keys
         self.handler = handler
         panel = FormPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 640, height: 220),
-            styleMask: [.titled, .resizable, .utilityWindow],
+            contentRect: NSRect(x: 0, y: 0, width: 640, height: 240),
+            styleMask: [.borderless, .resizable],
             backing: .buffered, defer: false
         )
-        panel.title = "Kaede（\(keys.insert) で入れる、\(keys.open) で閉じる）"
+        // The rounded, translucent content draws the window; the shadow follows its shape
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.isMovableByWindowBackground = true
+        panel.minSize = NSSize(width: 380, height: 150)
         panel.isFloatingPanel = true
         panel.level = .floating
         panel.hidesOnDeactivate = false
@@ -49,8 +56,37 @@ final class InputForm {
         }
         self.textView = textView
         Self.makePlain(textView)
-        panel.contentView = scrollView
+        scrollView.drawsBackground = false
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        textView.drawsBackground = false
+        textView.textContainerInset = NSSize(width: 4, height: 6)
 
+        model = FormModel(insertSymbols: keys.insert.symbols, openSymbols: keys.open.symbols)
+        textView.font = .systemFont(ofSize: model.fontSize)
+        let background = NSVisualEffectView()
+        background.material = .popover
+        background.blendingMode = .behindWindow
+        background.state = .active
+        background.maskImage = Self.roundedMask(radius: Self.cornerRadius)
+        let content = NSHostingView(rootView: FormView(model: model, editor: scrollView))
+        content.translatesAutoresizingMaskIntoConstraints = false
+        background.addSubview(content)
+        NSLayoutConstraint.activate([
+            content.leadingAnchor.constraint(equalTo: background.leadingAnchor),
+            content.trailingAnchor.constraint(equalTo: background.trailingAnchor),
+            content.topAnchor.constraint(equalTo: background.topAnchor),
+            content.bottomAnchor.constraint(equalTo: background.bottomAnchor),
+        ])
+        panel.contentView = background
+
+        model.close = { [weak self] in self?.toggle() }
+        // The text storage changes with the text being composed too, which NSText's change
+        // notification leaves out until it is committed
+        NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: textView.textStorage, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.textChanged() }
+        }
+        handler.onStateChange = { [weak self] in self?.refreshMode() }
         handler.formWindow = panel
         // Before the engine and the input method see the key, so it works mid-conversion
         handler.interceptor = { [weak self] event in
@@ -97,6 +133,7 @@ final class InputForm {
         NSApp.activate()
         panel.makeKeyAndOrderFront(nil)
         panel.makeFirstResponder(textView)
+        refreshMode()
         Task { await expectActive() }
         log.info("The form opened.")
         if source != .roman {
@@ -222,9 +259,32 @@ final class InputForm {
             return
         }
         textView.string = ""
+        textChanged()
         // After the app has taken the text in the Roman source
         await InputSourceSwitcher.pause(Self.restoreDelay)
         restoreManualAzooKey()
+    }
+
+    private func textChanged() {
+        model.isEmpty = textView.textStorage?.length == 0
+    }
+
+    /// Shows the input mode: English, Kaede's azooKey with the layout it reads, or azooKey
+    /// selected by hand.
+    private func refreshMode() {
+        switch InputSourceGuard.current() {
+        case .roman:
+            model.mode = .english
+        case .azooKey:
+            let layout: String? = switch handler.remappingAnswer {
+            case .japaneseEbi: "Ebi"
+            case .japaneseQwerty: "QWERTY"
+            case .english, .keep, nil: nil
+            }
+            model.mode = .japanese(layout: layout)
+        case .other:
+            model.mode = .other
+        }
     }
 
     private func fail(_ message: String) {
@@ -233,6 +293,20 @@ final class InputForm {
     }
 
     private static let frameName = "KaedeInputForm"
+    private static let cornerRadius: CGFloat = 16
+
+    /// A stretchable mask with rounded corners for the translucent background.
+    private static func roundedMask(radius: CGFloat) -> NSImage {
+        let side = radius * 2 + 1
+        let image = NSImage(size: NSSize(width: side, height: side), flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+            return true
+        }
+        image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
+        image.resizingMode = .stretch
+        return image
+    }
     /// How long Hammerspoon may take to switch after a command key, and macOS to activate Kaede.
     private static let switchTimeout: Duration = .milliseconds(300)
     /// How long before manual azooKey comes back, after the app has taken the text.
@@ -292,9 +366,13 @@ final class InputForm {
     }
 }
 
-/// The form's panel: it floats over the app the text goes to.
+/// The form's panel: borderless, floating over the app the text goes to.
 private final class FormPanel: NSPanel {
     override var canBecomeKey: Bool {
+        true
+    }
+
+    override var canBecomeMain: Bool {
         true
     }
 

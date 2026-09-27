@@ -94,11 +94,13 @@ import Testing
     @Test func tellsWhetherItIsSwitchingOrRemapping() {
         let engine = SwitchEngine(rule: .forTests)
         #expect(!engine.isSwitching && !engine.isRemapping)
+        #expect(engine.remappingAnswer == nil)
         let question = engine.type("jaj", at: t0)[0]
         _ = engine.receive(Judgment(answer: .japaneseEbi, confidence: 0.95), to: question.id, at: t0)
         #expect(engine.isSwitching && !engine.isRemapping)
         _ = engine.switchSucceeded()
         #expect(!engine.isSwitching && engine.isRemapping)
+        #expect(engine.remappingAnswer == .japaneseEbi)
         _ = engine.handle(.enter, source: .azooKey, at: t0)
         #expect(engine.isSwitching && !engine.isRemapping)
     }

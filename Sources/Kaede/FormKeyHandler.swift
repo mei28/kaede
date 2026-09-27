@@ -25,6 +25,8 @@ final class FormKeyHandler {
     /// Looks at a key of the form before the engine and the input method; returns whether it
     /// took the key (the form's insert key).
     var interceptor: ((NSEvent) -> Bool)?
+    /// Called when the input source or Kaede's switching changes, for the form's mode display.
+    var onStateChange: (() -> Void)?
     /// Totals for the log.
     private var questionsAnswered = 0
     private var inputTokens = 0
@@ -55,6 +57,11 @@ final class FormKeyHandler {
         engine.isRemapping
     }
 
+    /// The Japanese answer whose layout Kaede reads keys through, if it does.
+    var remappingAnswer: Answer? {
+        engine.remappingAnswer
+    }
+
     /// A click or another app: the caret may be anywhere now.
     func caretMoved() {
         apply(engine.caretMoved())
@@ -63,6 +70,7 @@ final class FormKeyHandler {
     func inputSourceChanged() {
         engine.inputSourceChanged(to: InputSourceGuard.current())
         rescheduleTimer()
+        onStateChange?()
     }
 
     /// The event to go on with: the event itself, another key in its place, or nil to drop it.
@@ -146,6 +154,7 @@ final class FormKeyHandler {
         poster.typeKeys(order.romaji)
         log.info("Switched a word of \(order.deleteCount, privacy: .public) keys to azooKey as \(order.answer.rawValue, privacy: .public).")
         replay(engine.switchSucceeded())
+        onStateChange?()
     }
 
     /// Selects the Roman source again once azooKey has committed with the Enter that just passed.

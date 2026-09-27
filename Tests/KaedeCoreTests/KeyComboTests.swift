@@ -27,6 +27,12 @@ import Testing
         #expect(throws: KeyComboError.unknownPart("ü")) { try KeyCombo(parsing: "ctrl+ü") }
     }
 
+    @Test(arguments: [("ctrl+alt+k", "⌃⌥K"), ("cmd+enter", "⌘↩"), ("cmd+shift+/", "⇧⌘/"), ("ctrl+space", "⌃Space"), ("alt+tab", "⌥⇥")])
+    func showsItsKeysAsTheMenusDo(text: String, symbols: String) throws {
+        // Control, Option, Shift, Command, then the key, as macOS menus list them
+        #expect(try KeyCombo(parsing: text).symbols == symbols)
+    }
+
     @Test func matchesItsKeyWithExactlyItsModifiers() throws {
         let insert = try KeyCombo(parsing: "cmd+enter")
         #expect(insert.matches(keyCode: 36, modifiers: [.command]))

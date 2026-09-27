@@ -58,6 +58,22 @@ public struct KeyCombo: Equatable, Sendable, CustomStringConvertible {
         return (names + [Self.keyName(of: keyCode)]).joined(separator: "+")
     }
 
+    /// The keys as macOS menus show them: ⌃⌥⇧⌘ in that order, then the key.
+    public var symbols: String {
+        let marks = Self.modifierSymbols.filter { modifiers.contains($0.modifier) }.map(\.symbol)
+        let key = switch keyCode {
+        case 36: "↩"
+        case 48: "⇥"
+        case 49: "Space"
+        default: Self.keyName(of: keyCode).uppercased()
+        }
+        return marks.joined() + key
+    }
+
+    private static let modifierSymbols: [(modifier: Modifiers, symbol: String)] = [
+        (.control, "⌃"), (.option, "⌥"), (.shift, "⇧"), (.command, "⌘"),
+    ]
+
     private static let modifierNames: [String: Modifiers] = [
         "cmd": .command, "command": .command,
         "ctrl": .control, "control": .control,
