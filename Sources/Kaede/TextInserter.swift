@@ -17,7 +17,7 @@ struct TextInserter {
 
     private let poster = EventPoster()
 
-    /// The pause between pieces, so the event tap keeps up with Kaede's own events.
+    /// The pause between pieces, so the app keeps up with the typed text.
     private static let pieceGap: Duration = .milliseconds(5)
 
     /// Selects the Roman source if Kaede switched the form to azooKey, then types the pieces.

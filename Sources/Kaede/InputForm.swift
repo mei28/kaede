@@ -2,20 +2,20 @@ import AppKit
 import KaedeCore
 
 /// Kaede's window for writing: opened over the app in front, it puts its text into that app.
+/// Kaede judges only the keys typed here.
 ///
 /// Kaede is the active app while the form is open: the input method reads the keys of the active
 /// app only, so a panel that left the other app in front got plain letters where azooKey should
 /// have composed. Closing the form hands the activation back to the app the text goes to. The
-/// event tap judges the keys typed into the form as anywhere else.
+/// key handler judges the keys typed into the form.
 @MainActor
 final class InputForm {
     private let keys: FormKeys
-    private let tap: EventTap
+    private let handler: FormKeyHandler
     private let inserter = TextInserter()
     private let poster = EventPoster()
     private let panel: FormPanel
     private let textView: NSTextView
-    private var insertMonitor: Any?
     /// The app in front when the form opened: the text goes there.
     private var target: NSRunningApplication?
     /// azooKey was selected by hand (with Hammerspoon's Ebi remapping) when the form opened, and
@@ -23,9 +23,9 @@ final class InputForm {
     private var restoresManualAzooKey = false
     private var inserting = false
 
-    init(keys: FormKeys, tap: EventTap) {
+    init(keys: FormKeys, handler: FormKeyHandler) {
         self.keys = keys
-        self.tap = tap
+        self.handler = handler
         panel = FormPanel(
             contentRect: NSRect(x: 0, y: 0, width: 640, height: 220),
             styleMask: [.titled, .resizable, .utilityWindow],
@@ -51,20 +51,16 @@ final class InputForm {
         Self.makePlain(textView)
         panel.contentView = scrollView
 
-        // Before the key window and the input method see the key, so it works mid-conversion
-        insertMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            let keyCode = event.keyCode
-            let windowNumber = event.windowNumber
-            let taken = MainActor.assumeIsolated {
-                self?.takeInsertKey(keyCode: keyCode, windowNumber: windowNumber) ?? false
-            }
-            return taken ? nil : event
+        handler.formWindow = panel
+        // Before the engine and the input method see the key, so it works mid-conversion
+        handler.interceptor = { [weak self] event in
+            self?.takeInsertKey(event) ?? false
         }
     }
 
-    /// Inserts when the key is the insert key pressed in the form; returns whether it was.
-    private func takeInsertKey(keyCode: UInt16, windowNumber: Int) -> Bool {
-        guard windowNumber == panel.windowNumber, keys.insert.matches(keyCode: keyCode, modifiers: Self.heldModifiers()) else {
+    /// Inserts when the key is the insert key; returns whether it was.
+    private func takeInsertKey(_ event: NSEvent) -> Bool {
+        guard keys.insert.matches(keyCode: event.keyCode, modifiers: Self.heldModifiers()) else {
             return false
         }
         insert()
@@ -74,7 +70,7 @@ final class InputForm {
     /// The open key: shows the form over the app in front, or hides it keeping the draft.
     func toggle() {
         guard !inserting else { return }
-        guard !tap.isSwitching else {
+        guard !handler.isSwitching else {
             // Kaede is typing into the app in front; the panel would take those keys
             log.info("The form waits: Kaede is switching a word.")
             NSSound.beep()
@@ -94,10 +90,10 @@ final class InputForm {
             return
         }
         target = front
-        tap.formTarget = front.bundleIdentifier
+        handler.formTarget = front.bundleIdentifier
         let source = InputSourceGuard.current()
-        restoresManualAzooKey = source == .azooKey && !tap.isRemapping
-        tap.caretMoved()
+        restoresManualAzooKey = source == .azooKey && !handler.isRemapping
+        handler.caretMoved()
         NSApp.activate()
         panel.makeKeyAndOrderFront(nil)
         panel.makeFirstResponder(textView)
@@ -115,18 +111,32 @@ final class InputForm {
     private func hide() {
         putAway()
         log.info("The form closed; the draft stays.")
-        restoreManualAzooKey()
+        Task { await restoreSource() }
+    }
+
+    /// The app gets back the input mode it had: azooKey selected by hand, or English (the form
+    /// may have left Kaede's azooKey selected).
+    private func restoreSource() async {
+        if restoresManualAzooKey {
+            restoreManualAzooKey()
+            return
+        }
+        guard InputSourceGuard.current() != .roman else { return }
+        guard await InputSourceSwitcher.select(InputSourceGuard.romanID) else {
+            fail("Selecting the Roman source after the form failed.")
+            return
+        }
     }
 
     /// Hides the form and hands the activation back to the app the text goes to.
     private func putAway() {
         panel.orderOut(nil)
-        tap.formTarget = nil
+        handler.formTarget = nil
         if let target {
             NSApp.yieldActivation(to: target)
             target.activate(from: .current, options: [])
         }
-        tap.caretMoved()
+        handler.caretMoved()
     }
 
     /// macOS may turn an activation request down; without it the input method ignores the form.
@@ -166,7 +176,7 @@ final class InputForm {
 
     private func insert() {
         guard !inserting, let target else { return }
-        guard !tap.isSwitching else {
+        guard !handler.isSwitching else {
             log.info("The form waits: Kaede is switching a word.")
             NSSound.beep()
             return
@@ -205,7 +215,7 @@ final class InputForm {
             try await inserter.type(pieces, into: target.processIdentifier)
         } catch {
             fail("Putting the form's text into the app failed: \(error)")
-            tap.formTarget = target.bundleIdentifier
+            handler.formTarget = target.bundleIdentifier
             NSApp.activate()
             panel.makeKeyAndOrderFront(nil)
             panel.makeFirstResponder(textView)

@@ -2,21 +2,29 @@ import AppKit
 import KaedeCore
 import KaedeRemote
 
-/// The session event tap: feeds keys and clicks to the engine, asks Jev what it asks for, and
+/// Feeds the keys typed into the input form to the engine, asks Jev what it asks for, and
 /// carries out the switches it decides.
+///
+/// Kaede sees only its own keys: other apps' keys never reach it, so it needs no input
+/// monitoring. The form is the active app's key window while it is open.
 @MainActor
-final class EventTap {
+final class FormKeyHandler {
     private let engine: SwitchEngine
     private let jev: JevSwitchRequest
     private let transport = URLSessionTransport()
     private let poster = EventPoster()
-    private var machPort: CFMachPort?
+    private var monitor: Any?
     private var health = QueryHealth()
     /// Wakes the engine when a pause would settle the latest answer.
     private var pauseTimer: Task<Void, Never>?
     private var timerDeadline: ContinuousClock.Instant?
     /// The app the input form writes for, while it is open: Jev hears about that app, not Kaede.
     var formTarget: String?
+    /// The form's window: only its keys go to the engine (not those of the settings, say).
+    weak var formWindow: NSWindow?
+    /// Looks at a key of the form before the engine and the input method; returns whether it
+    /// took the key (the form's insert key).
+    var interceptor: ((NSEvent) -> Bool)?
     /// Totals for the log.
     private var questionsAnswered = 0
     private var inputTokens = 0
@@ -26,22 +34,15 @@ final class EventTap {
         self.jev = jev
     }
 
+    /// Watches the events Kaede receives, before its windows and the input method see them.
     func start() {
-        let mask: CGEventMask = [CGEventType.keyDown, .leftMouseDown, .rightMouseDown, .otherMouseDown]
-            .reduce(0) { $0 | (1 << $1.rawValue) }
-        guard let port = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
-            place: .headInsertEventTap,
-            options: .defaultTap,
-            eventsOfInterest: mask,
-            callback: tapCallback,
-            userInfo: Unmanaged.passUnretained(self).toOpaque()
-        ) else {
-            terminate("Could not create the event tap.")
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
+            // Local monitors run on the main thread
+            nonisolated(unsafe) let event = event
+            return MainActor.assumeIsolated {
+                EventBox(event: self.map { $0.handle(event) } ?? event)
+            }.event
         }
-        machPort = port
-        CFRunLoopAddSource(CFRunLoopGetMain(), CFMachPortCreateRunLoopSource(nil, port, 0), .commonModes)
-        CGEvent.tapEnable(tap: port, enable: true)
     }
 
     /// Kaede is typing into the app to move a word to azooKey or English back.
@@ -64,39 +65,29 @@ final class EventTap {
         rescheduleTimer()
     }
 
-    /// Returns whether the event goes on to the apps.
-    fileprivate func handle(_ type: CGEventType, _ event: CGEvent, proxy: CGEventTapProxy) -> Bool {
-        switch type {
-        case .tapDisabledByTimeout, .tapDisabledByUserInput:
-            // The system turns off a tap that answers too slowly; turn it straight back on.
-            log.notice("Event tap was disabled; enabling it again.")
-            if let machPort { CGEvent.tapEnable(tap: machPort, enable: true) }
-            return true
-        case .keyDown:
-            return handleKeyDown(event, proxy: proxy)
-        default:
-            caretMoved()
-            return true
+    /// The event to go on with: the event itself, another key in its place, or nil to drop it.
+    private func handle(_ event: NSEvent) -> NSEvent? {
+        guard let formWindow, event.window === formWindow else {
+            return event
         }
-    }
-
-    private func handleKeyDown(_ event: CGEvent, proxy: CGEventTapProxy) -> Bool {
-        let key = CGEventBridge.rawKey(from: event)
-        if !key.isKaedeEvent, SecureInput.isEnabled {
-            log.info("Skipped: secure input is on.")
+        guard event.type == .keyDown else {
             caretMoved()
-            return true
+            return event
         }
+        if interceptor?(event) == true {
+            return nil
+        }
+        let key = KeyEventBridge.rawKey(from: event)
         let (action, reaction) = engine.handle(key, source: InputSourceGuard.current(), at: .now)
         apply(reaction)
         switch action {
         case .pass:
-            return true
+            return event
         case .suppress:
-            return false
+            return nil
         case let .remap(keyCode):
-            poster.remap(keyCode: keyCode, flags: CGEventBridge.flags(of: key), proxy: proxy)
-            return false
+            // In place of the event, so the key keeps its turn
+            return KeyEventBridge.event(from: event, keyCode: keyCode)
         }
     }
 
@@ -170,7 +161,7 @@ final class EventTap {
         replay(engine.switchedBack())
     }
 
-    /// Posts held keys again, unmarked, so they come back through the tap in their order.
+    /// Posts held keys again, unmarked, so they come back through the key handler in their order.
     private func replay(_ keys: [RawKey]) {
         for key in keys {
             poster.replay(key)
@@ -200,16 +191,8 @@ final class EventTap {
     }
 }
 
-private func tapCallback(
-    proxy: CGEventTapProxy, type: CGEventType, event: CGEvent, userInfo: UnsafeMutableRawPointer?
-) -> Unmanaged<CGEvent>? {
-    // The run loop source is on the main run loop, so the callback already runs on the main
-    // thread and nothing is actually sent across threads.
-    nonisolated(unsafe) let event = event
-    nonisolated(unsafe) let userInfo = userInfo
-    nonisolated(unsafe) let proxy = proxy
-    let passes = MainActor.assumeIsolated {
-        Unmanaged<EventTap>.fromOpaque(userInfo!).takeUnretainedValue().handle(type, event, proxy: proxy)
-    }
-    return passes ? Unmanaged.passUnretained(event) : nil
+/// Carries an event out of `MainActor.assumeIsolated`, which wants a Sendable result; the event
+/// never leaves the main thread.
+private struct EventBox: @unchecked Sendable {
+    let event: NSEvent?
 }

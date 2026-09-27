@@ -1,8 +1,8 @@
 import Carbon
 import KaedeCore
 
-/// A system-wide hot key. Unlike the event tap, it works while secure input is on and does not
-/// depend on the order of the taps (Hammerspoon's reload puts its taps first).
+/// A system-wide hot key: it opens the form from any app, even while secure input is on, and
+/// needs no permission.
 @MainActor
 final class HotKey {
     private let action: @MainActor () -> Void

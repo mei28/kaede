@@ -42,7 +42,7 @@ enum InputSourceSwitcher {
         inputSource(id) != nil
     }
 
-    /// Waits without blocking the main run loop, so the event tap keeps receiving keys.
+    /// Waits without blocking the main run loop, so Kaede keeps receiving keys.
     static func pause(_ duration: Duration) async {
         do {
             try await Task.sleep(for: duration)

@@ -1,7 +1,7 @@
 import CoreGraphics
 import KaedeCore
 
-/// Posts keyboard events. Kaede's own events carry `marker` so its tap lets them through.
+/// Posts keyboard events. Kaede's own events carry `marker` so its key handler lets them through.
 struct EventPoster {
     /// "KAED" in ASCII, stored in kCGEventSourceUserData.
     static let marker: Int64 = 0x4B41_4544
@@ -73,18 +73,9 @@ struct EventPoster {
         }
     }
 
-    /// Sends `keyCode` in place of a key the tap is swallowing, marked, from inside the tap
-    /// callback so it keeps its place among the keys that follow (Hammerspoon's keyLayout.lua
-    /// does the same). azooKey reads the characters the new event carries for its key code.
-    func remap(keyCode: UInt16, flags: CGEventFlags, proxy: CGEventTapProxy) {
-        for keyDown in [true, false] {
-            makeEvent(CGKeyCode(keyCode), keyDown: keyDown, flags: flags, source: markedSource).tapPostEvent(proxy)
-        }
-    }
-
-    /// Posts a held key again, unmarked, so the tap handles it as fresh input.
+    /// Posts a held key again, unmarked, so the key handler takes it as fresh input.
     func replay(_ key: RawKey) {
-        postKey(CGKeyCode(key.keyCode), flags: CGEventBridge.flags(of: key), source: nil)
+        postKey(CGKeyCode(key.keyCode), flags: KeyEventBridge.flags(of: key), source: nil)
     }
 
     private func postKey(_ keyCode: CGKeyCode, flags: CGEventFlags, source: CGEventSource?) {

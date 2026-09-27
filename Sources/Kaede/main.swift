@@ -7,6 +7,8 @@ guard let resources = Bundle.main.resourceURL else {
 }
 Startup.verify()
 let formKeys = FormSettings.load()
+// Windows, menus and event monitors need the application object; NSApp stays nil until it is made
+let application = NSApplication.shared
 
 // The dictionary rule only feeds the log, next to Jev's answers
 let lexicon: EnglishLexicon
@@ -28,21 +30,19 @@ do {
     terminate("Could not read the Jev API key: \(error)")
 }
 
-let tap = EventTap(engine: SwitchEngine(rule: DictionaryRule(lexicon: lexicon)), jev: JevSwitchRequest(apiKey: jevKey))
-tap.start()
+let keyHandler = FormKeyHandler(engine: SwitchEngine(rule: DictionaryRule(lexicon: lexicon)), jev: JevSwitchRequest(apiKey: jevKey))
+keyHandler.start()
 
 // Switching apps moves the caret out of the word.
 NSWorkspace.shared.notificationCenter.addObserver(
     forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
 ) { _ in
-    MainActor.assumeIsolated { tap.caretMoved() }
+    MainActor.assumeIsolated { keyHandler.caretMoved() }
 }
-// Windows and menus need the application object; NSApp stays nil until it is made
-let application = NSApplication.shared
 InputForm.installEditMenu()
-let inputForm = InputForm(keys: formKeys, tap: tap)
+let inputForm = InputForm(keys: formKeys, handler: keyHandler)
 let formHotKey = HotKey(formKeys.open) { inputForm.toggle() }
-let inputSourceWatcher = InputSourceWatcher { tap.inputSourceChanged() }
+let inputSourceWatcher = InputSourceWatcher { keyHandler.inputSourceChanged() }
 
 log.notice("Kaede started.")
 application.run()
