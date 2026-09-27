@@ -44,10 +44,13 @@ public struct Reaction: Equatable, Sendable {
     public var question: Question?
     /// Switch the word to azooKey.
     public var switchOrder: SwitchOrder?
+    /// The user just paused Kaede: play the pause sound.
+    public var paused: Bool
 
-    public init(question: Question? = nil, switchOrder: SwitchOrder? = nil) {
+    public init(question: Question? = nil, switchOrder: SwitchOrder? = nil, paused: Bool = false) {
         self.question = question
         self.switchOrder = switchOrder
+        self.paused = paused
     }
 }
 
@@ -74,6 +77,9 @@ public final class SwitchEngine {
     private var textBefore = ""
     private var state = State.watching
 
+    /// Paused with ctrl+alt+p: nothing is asked or remembered until Enter, a moved caret, or the
+    /// key again. For a password typed where the field is not a secure one (a terminal).
+    private var paused = false
     /// Notifications of input source changes that Kaede's own switch will cause.
     private var ownSwitchNotifications = 0
 
@@ -100,6 +106,14 @@ public final class SwitchEngine {
         if key.isKaedeEvent {
             return (.pass, Reaction())
         }
+        if Self.isPauseKey(key), !isSwitching {
+            paused.toggle()
+            startWord()
+            return (.suppress, Reaction(paused: paused))
+        }
+        if KeyCode.enter.contains(key.keyCode) {
+            paused = false
+        }
         switch state {
         case .watching:
             break
@@ -117,6 +131,9 @@ public final class SwitchEngine {
         guard source == .roman else {
             // Another source (azooKey switched by hand, say) types into the field meanwhile
             forgetText()
+            return (.pass, Reaction())
+        }
+        if paused {
             return (.pass, Reaction())
         }
         return (.pass, Reaction(question: watch(key, at: instant)))
@@ -187,6 +204,7 @@ public final class SwitchEngine {
 
     /// A click or another app: the caret may be anywhere now.
     public func caretMoved() -> Reaction {
+        paused = false
         forgetText()
         return Reaction()
     }
@@ -231,6 +249,14 @@ public final class SwitchEngine {
         endWord()
         remember(String(character))
         return nil
+    }
+
+    private static func isPauseKey(_ key: RawKey) -> Bool {
+        key.keyCode == KeyPosition.p.keyCode && key.control && key.option && !key.command
+    }
+
+    private var isSwitching: Bool {
+        if case .switching = state { true } else { false }
     }
 
     /// What azooKey gets for a key: the key read in the layout. The text before follows along.
