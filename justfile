@@ -9,7 +9,7 @@ default:
     @just --list
 
 # ユニットテスト実行（TDD のメインループ）
-test: zenzai-model
+test:
     swift test
 
 # ビルド（デバッグ）
@@ -31,11 +31,6 @@ bundle:
 # .app を起動する（アクセシビリティと入力監視の許可は .app に与える）
 run: bundle
     open dist/Kaede.app
-
-# Zenzai の重み（zenz-v3.1-small、CC BY-SA 4.0）を Models/ に取得する（既にあれば何もしない）
-zenzai-model:
-    mkdir -p Models
-    test -f Models/zenz-v3.1-small.gguf || curl -fL -o Models/zenz-v3.1-small.gguf https://huggingface.co/Miwa-Keita/zenz-v3.1-small-gguf/resolve/main/ggml-model-Q5_K_M.gguf
 
 # API キーをキーチェーンに登録する（name: jev か anthropic。キーは画面に出さずに入力する）
 set-key name:
