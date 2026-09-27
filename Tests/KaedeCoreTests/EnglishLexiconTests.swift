@@ -57,4 +57,19 @@ let bundledWordLists = ["en10k.txt", "extra-words.txt"].map { name in
         #expect(!lexicon.contains("ko"))
         #expect(!lexicon.contains("x"))
     }
+
+    @Test func findsWordsThatStartWithTypedLetters() {
+        let lexicon = EnglishLexicon(wordList: "the\nthink\nwater\n")
+        #expect(lexicon.containsWord(startingWith: "thi"))
+        #expect(lexicon.containsWord(startingWith: "THI"))
+        #expect(lexicon.containsWord(startingWith: "think"))
+        #expect(!lexicon.containsWord(startingWith: "thinks"))
+        #expect(!lexicon.containsWord(startingWith: "jajsd"))
+    }
+
+    @Test func startsOnlyWordsItCounts() {
+        // "ha" is a fragment the lexicon drops, so nothing starts with it here
+        let lexicon = EnglishLexicon(wordList: "ha\n")
+        #expect(!lexicon.containsWord(startingWith: "ha"))
+    }
 }
