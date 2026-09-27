@@ -139,7 +139,12 @@ public struct Layout: Sendable {
     })
 
     public func character(at position: KeyPosition, shift: Bool) -> Character {
-        let key = target(position)
+        let key = key(at: position)
         return shift ? key.qwertyShiftedCharacter : key.qwertyCharacter
+    }
+
+    /// The QWERTY key this layout puts at a physical position.
+    public func key(at position: KeyPosition) -> KeyPosition {
+        target(position)
     }
 }

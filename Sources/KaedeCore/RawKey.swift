@@ -39,6 +39,11 @@ extension RawKey {
         return character
     }
 
+    /// Held with cmd, ctrl or alt: a shortcut, not text.
+    var hasShortcutModifier: Bool {
+        command || control || option
+    }
+
     /// The custom keyboard sends ? : < > from its symbol layer with right Shift. The built-in
     /// keyboard's right Shift sets the same bit, so only these four keys honor it.
     func isSymbolLayer(at position: KeyPosition) -> Bool {
