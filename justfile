@@ -32,11 +32,6 @@ bundle:
 run: bundle
     open dist/Kaede.app
 
-# Jev の API キーをキーチェーンに登録する（キーは画面に出さずに入力する）
-set-key name:
-    @test "{{name}}" = jev || (echo "name は jev" && exit 1)
-    security add-generic-password -U -a kaede -s com.mei28.kaede.{{name}} -w
-
 # 誤って日本語に切り替わった英単語や名前を、英語として守る語の一覧に足す（反映は just bundle の後）
 add-word word:
     @grep -qxi "{{word}}" Resources/extra-words.txt && echo "{{word}} はもう入っています" || (echo "{{word}}" >> Resources/extra-words.txt && echo "{{word}} を足しました。just bundle で作り直すと反映されます")

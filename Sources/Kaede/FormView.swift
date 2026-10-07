@@ -1,17 +1,9 @@
 import AppKit
 import SwiftUI
 
-/// What the form shows besides the text: the input mode, the keys, and whether it is empty.
+/// What the form shows besides the text: the keys, and whether it is empty.
 @MainActor
 final class FormModel: ObservableObject {
-    enum Mode: Equatable {
-        case english
-        /// Japanese, with the layout Kaede reads the keys in, or nil when azooKey was selected by hand.
-        case japanese(layout: String?)
-        case other
-    }
-
-    @Published var mode = Mode.english
     @Published var isEmpty = true
     @Published var fontSize: CGFloat
     @Published var insertSymbols: String
@@ -27,7 +19,7 @@ final class FormModel: ObservableObject {
     }
 }
 
-/// The form: the text, a close button, and a strip with the input mode and the keys.
+/// The form: the text, a close button, and a strip with the keys.
 struct FormView: View {
     @ObservedObject var model: FormModel
     /// The text view Kaede configured, in its scroll view.
@@ -65,7 +57,6 @@ struct FormView: View {
             HStack(spacing: 12) {
                 Image(systemName: "leaf.fill")
                     .foregroundStyle(Color.maple)
-                ModeBadge(mode: model.mode)
                 Spacer()
                 KeyHint(symbols: model.insertSymbols, label: "入れる")
                 KeyHint(symbols: model.openSymbols, label: "閉じる")
@@ -93,32 +84,6 @@ private struct EditorView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {}
-}
-
-private struct ModeBadge: View {
-    let mode: FormModel.Mode
-
-    var body: some View {
-        Text(label)
-            .font(.system(size: 11, weight: .semibold))
-            .padding(.horizontal, 7)
-            .padding(.vertical, 2)
-            .foregroundStyle(isJapanese ? Color.maple : Color.secondary)
-            .background(Capsule().fill(isJapanese ? Color.maple.opacity(0.18) : Color.secondary.opacity(0.15)))
-    }
-
-    private var label: String {
-        switch mode {
-        case .english: "英字"
-        case let .japanese(layout?): "日本語・\(layout)"
-        case .japanese(nil): "日本語"
-        case .other: "ほかの入力"
-        }
-    }
-
-    private var isJapanese: Bool {
-        if case .japanese = mode { true } else { false }
-    }
 }
 
 private struct KeyHint: View {

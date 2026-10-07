@@ -1,13 +1,11 @@
 import CoreGraphics
 import KaedeCore
 
-/// Posts keyboard events. Kaede's own events carry `marker` so its key handler lets them through.
+/// Posts keyboard events, marked with `marker` as Kaede's own.
 struct EventPoster {
     /// "KAED" in ASCII, stored in kCGEventSourceUserData.
     static let marker: Int64 = 0x4B41_4544
 
-    private static let backspaceKeyCode: CGKeyCode = 51
-    private static let hyphenKeyCode: CGKeyCode = 27
     private static let returnKeyCode: CGKeyCode = 36
     /// The key code Unicode text events carry. Not 0: Hammerspoon's Ebi remapping rebuilds a
     /// key-0 event as a bare "a" and drops the text. espanso uses Space too.
@@ -22,12 +20,6 @@ struct EventPoster {
         }
         source.userData = Self.marker
         markedSource = source
-    }
-
-    func deleteBackward(_ count: Int) {
-        for _ in 0..<count {
-            postKey(Self.backspaceKeyCode, flags: [], source: markedSource)
-        }
     }
 
     /// Types one piece of text (at most `TypingPlan.maxUnitsPerPiece` UTF-16 units) as a
@@ -56,26 +48,6 @@ struct EventPoster {
             event.type = .flagsChanged
             event.post(tap: .cgSessionEventTap)
         }
-    }
-
-    /// Presses the QWERTY keys that spell `romaji` (letters, "," "." and "-"), marked, so an
-    /// input method such as azooKey reads them as typed romaji.
-    func typeKeys(_ romaji: String) {
-        for character in romaji {
-            if character == "-" {
-                postKey(Self.hyphenKeyCode, flags: [], source: markedSource)
-                continue
-            }
-            guard let position = KeyPosition.allCases.first(where: { Layout.qwerty.character(at: $0, shift: false) == character }) else {
-                preconditionFailure("romaji holds a character outside the 30 layout keys and -: \(character)")
-            }
-            postKey(CGKeyCode(position.keyCode), flags: [], source: markedSource)
-        }
-    }
-
-    /// Posts a held key again, unmarked, so the key handler takes it as fresh input.
-    func replay(_ key: RawKey) {
-        postKey(CGKeyCode(key.keyCode), flags: KeyEventBridge.flags(of: key), source: nil)
     }
 
     private func postKey(_ keyCode: CGKeyCode, flags: CGEventFlags, source: CGEventSource?) {

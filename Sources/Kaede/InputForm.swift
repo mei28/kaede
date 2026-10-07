@@ -3,12 +3,10 @@ import KaedeCore
 import SwiftUI
 
 /// Kaede's window for writing: opened over the app in front, it puts its text into that app.
-/// Kaede judges only the keys typed here.
 ///
 /// Kaede is the active app while the form is open: the input method reads the keys of the active
 /// app only, so a panel that left the other app in front got plain letters where azooKey should
-/// have composed. Closing the form hands the activation back to the app the text goes to. The
-/// key handler judges the keys typed into the form.
+/// have composed. Closing the form hands the activation back to the app the text goes to.
 @MainActor
 final class InputForm {
     private var keys: FormKeys
@@ -20,7 +18,7 @@ final class InputForm {
     private let model: FormModel
     /// The app in front when the form opened: the text goes there.
     private var target: NSRunningApplication?
-    /// azooKey was selected by hand (with Hammerspoon's Ebi remapping) when the form opened, and
+    /// azooKey was selected (by hand, with Hammerspoon's Ebi remapping) when the form opened, and
     /// comes back when it closes.
     private var restoresManualAzooKey = false
     private var inserting = false
@@ -86,9 +84,8 @@ final class InputForm {
         NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: textView.textStorage, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.textChanged() }
         }
-        handler.onStateChange = { [weak self] in self?.refreshMode() }
         handler.formWindow = panel
-        // Before the engine and the input method see the key, so it works mid-conversion
+        // Before the input method sees the key, so it works mid-conversion
         handler.interceptor = { [weak self] event in
             self?.takeInsertKey(event) ?? false
         }
@@ -123,12 +120,6 @@ final class InputForm {
     /// The open key: shows the form over the app in front, or hides it keeping the draft.
     func toggle() {
         guard !inserting else { return }
-        guard !handler.isSwitching else {
-            // Kaede is typing into the app in front; the panel would take those keys
-            log.info("The form waits: Kaede is switching a word.")
-            NSSound.beep()
-            return
-        }
         if panel.isVisible {
             hide()
         } else {
@@ -143,20 +134,16 @@ final class InputForm {
             return
         }
         target = front
-        handler.formTarget = front.bundleIdentifier
         let source = InputSourceGuard.current()
-        restoresManualAzooKey = source == .azooKey && !handler.isRemapping
-        handler.caretMoved()
+        restoresManualAzooKey = source == .azooKey
         NSApp.activate()
         panel.makeKeyAndOrderFront(nil)
         panel.makeFirstResponder(textView)
-        refreshMode()
         Task { await expectActive() }
         log.info("The form opened.")
         if source != .roman {
-            // Kaede judges only what is typed with the Roman source. Left cmd, as the user would
-            // press it, also turns Hammerspoon's Ebi remapping off, which selecting the source
-            // directly would leave on
+            // The form starts in English. Left cmd, as the user would press it, also turns
+            // Hammerspoon's Ebi remapping off, which selecting the source directly would leave on
             poster.tapCommand(right: false)
             Task { await expectRoman() }
         }
@@ -168,8 +155,8 @@ final class InputForm {
         Task { await restoreSource() }
     }
 
-    /// The app gets back the input mode it had: azooKey selected by hand, or English (the form
-    /// may have left Kaede's azooKey selected).
+    /// The app gets back the input mode it had: azooKey selected by hand, or English (azooKey may
+    /// have been selected in the form).
     private func restoreSource() async {
         if restoresManualAzooKey {
             restoreManualAzooKey()
@@ -185,12 +172,10 @@ final class InputForm {
     /// Hides the form and hands the activation back to the app the text goes to.
     private func putAway() {
         panel.orderOut(nil)
-        handler.formTarget = nil
         if let target {
             NSApp.yieldActivation(to: target)
             target.activate(from: .current, options: [])
         }
-        handler.caretMoved()
     }
 
     /// macOS may turn an activation request down; without it the input method ignores the form.
@@ -230,11 +215,6 @@ final class InputForm {
 
     private func insert() {
         guard !inserting, let target else { return }
-        guard !handler.isSwitching else {
-            log.info("The form waits: Kaede is switching a word.")
-            NSSound.beep()
-            return
-        }
         inserting = true
         Task {
             defer { inserting = false }
@@ -269,7 +249,6 @@ final class InputForm {
             try await inserter.type(pieces, into: target.processIdentifier)
         } catch {
             fail("Putting the form's text into the app failed: \(error)")
-            handler.formTarget = target.bundleIdentifier
             NSApp.activate()
             panel.makeKeyAndOrderFront(nil)
             panel.makeFirstResponder(textView)
@@ -284,24 +263,6 @@ final class InputForm {
 
     private func textChanged() {
         model.isEmpty = textView.textStorage?.length == 0
-    }
-
-    /// Shows the input mode: English, Kaede's azooKey with the layout it reads, or azooKey
-    /// selected by hand.
-    private func refreshMode() {
-        switch InputSourceGuard.current() {
-        case .roman:
-            model.mode = .english
-        case .azooKey:
-            let layout: String? = switch handler.remappingAnswer {
-            case .japaneseEbi: "Ebi"
-            case .japaneseQwerty: "QWERTY"
-            case .english, .keep, nil: nil
-            }
-            model.mode = .japanese(layout: layout)
-        case .other:
-            model.mode = .other
-        }
     }
 
     private func fail(_ message: String) {
@@ -329,8 +290,8 @@ final class InputForm {
     /// How long before manual azooKey comes back, after the app has taken the text.
     private static let restoreDelay: Duration = .milliseconds(200)
 
-    /// Plain text with nothing that changes words behind Kaede's back: Kaede deletes a word by
-    /// counting its keys, so a corrected word would throw the count off.
+    /// Plain text with nothing that changes words behind the user's back: spelling correction
+    /// and completion would rewrite romaji as English.
     private static func makePlain(_ textView: NSTextView) {
         textView.isRichText = false
         textView.allowsUndo = true

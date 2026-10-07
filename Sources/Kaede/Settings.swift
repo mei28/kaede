@@ -1,11 +1,10 @@
 import AppKit
 import KaedeCore
-import KaedeRemote
 import ServiceManagement
 import SwiftUI
 
 /// What the settings panel shows and changes. Each change is checked, saved to the app's
-/// defaults (or the keychain for the Jev key) and applied at once.
+/// defaults and applied at once.
 @MainActor
 final class SettingsModel: ObservableObject {
     /// Which key the panel is recording, if any.
@@ -18,8 +17,6 @@ final class SettingsModel: ObservableObject {
     @Published private(set) var recording: Recording?
     @Published var keyMessage: String?
     @Published var fontSize: Double
-    @Published private(set) var jevKeyStored: Bool
-    @Published var jevMessage: String?
     @Published private(set) var launchesAtLogin: Bool
     @Published var loginMessage: String?
 
@@ -27,16 +24,13 @@ final class SettingsModel: ObservableObject {
     var keysChanged: ((FormKeys) -> Void)?
     private let form: InputForm
     private let hotKey: HotKey
-    private let keyHandler: FormKeyHandler
     private var recorder: Any?
 
-    init(keys: FormKeys, fontSize: Double, form: InputForm, hotKey: HotKey, keyHandler: FormKeyHandler) {
+    init(keys: FormKeys, fontSize: Double, form: InputForm, hotKey: HotKey) {
         self.keys = keys
         self.fontSize = fontSize
         self.form = form
         self.hotKey = hotKey
-        self.keyHandler = keyHandler
-        jevKeyStored = Self.jevKeyStored()
         launchesAtLogin = SMAppService.mainApp.status == .enabled
     }
 
@@ -134,36 +128,6 @@ final class SettingsModel: ObservableObject {
         form.apply(fontSize: size)
     }
 
-    // MARK: Jev
-
-    /// Stores a new key in the keychain and uses it from the next question. The key is never
-    /// shown or logged.
-    func saveJevKey(_ key: String) {
-        let key = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !key.isEmpty else {
-            jevMessage = "キーが空です。"
-            return
-        }
-        do {
-            try Keychain.setAPIKey(key, named: "jev")
-        } catch {
-            jevMessage = "キーチェーンに保存できませんでした: \(error)"
-            return
-        }
-        keyHandler.useJevKey(key)
-        jevKeyStored = true
-        jevMessage = "保存しました。次の問い合わせから使います。"
-    }
-
-    private static func jevKeyStored() -> Bool {
-        do {
-            return try Keychain.apiKey(named: "jev") != nil
-        } catch {
-            log.error("Could not read the Jev API key for the settings: \(error)")
-            return false
-        }
-    }
-
     // MARK: Login
 
     func setLaunchesAtLogin(_ launches: Bool) {
@@ -187,7 +151,6 @@ final class SettingsModel: ObservableObject {
 /// The settings panel.
 struct SettingsView: View {
     @ObservedObject var model: SettingsModel
-    @State private var newJevKey = ""
 
     var body: some View {
         Form {
@@ -207,20 +170,6 @@ struct SettingsView: View {
                     Text("文字の大きさ")
                     Slider(value: Binding(get: { model.fontSize }, set: { model.setFontSize($0.rounded()) }), in: FormSettings.fontSizes, step: 1)
                     Text("\(Int(model.fontSize)) pt").monospacedDigit().frame(width: 44, alignment: .trailing)
-                }
-            }
-            Section("Jev") {
-                LabeledContent("API キー", value: model.jevKeyStored ? "登録済み" : "未登録")
-                HStack {
-                    SecureField("新しい API キー", text: $newJevKey)
-                    Button("保存") {
-                        model.saveJevKey(newJevKey)
-                        newJevKey = ""
-                    }
-                    .disabled(newJevKey.isEmpty)
-                }
-                if let message = model.jevMessage {
-                    Text(message).font(.callout).foregroundStyle(.secondary)
                 }
             }
             Section("起動") {
