@@ -1,16 +1,5 @@
-/// Decides whether typed letters can be romaji.
+/// Decides whether typed letters read as romaji.
 public enum RomajiParser {
-    /// Whether the chunk can still become plain romaji as more keys come: whole syllables, then
-    /// perhaps one still being typed ("tatoeb" on its way to tatoeba). A "-" after a syllable
-    /// reads as ー, as in ko-hi- for コーヒー.
-    public static func isPlainRomajiPrefix(_ chunk: String) -> Bool {
-        let characters = Array(chunk)
-        let reachable = plainReachable(characters)
-        return characters.indices.contains { start in
-            reachable[start] && unfinishedSyllables.contains(String(characters[start...]))
-        } || reachable[characters.count]
-    }
-
     /// Whether the letters read as whole plain syllables, as an IME would turn them into kana
     /// with nothing left over. A "-" after a syllable reads as ー.
     public static func isPlainRomaji(_ letters: some StringProtocol) -> Bool {
@@ -63,7 +52,7 @@ public enum RomajiParser {
 
     private static let syllables: Set<String> = {
         // A lone "n" is ん. Letting it split "na" as ん+あ only changes the kana, never whether
-        // the chunk is readable, so it needs no lookahead here.
+        // the letters are readable, so it needs no lookahead here.
         var table = Set(vowels + ["n", "nn"])
         // Read as 、 and 。
         table.formUnion([",", "."])
@@ -93,11 +82,4 @@ public enum RomajiParser {
     }()
 
     private static let maxSyllableLength = syllables.map(\.count).max()!
-
-    /// Proper starts of plain syllables: a syllable still being typed ("k", "ky", "sh").
-    private static let unfinishedSyllables: Set<String> = Set(
-        syllables.filter { !"xl".contains($0.first!) }.flatMap { syllable in
-            (1..<syllable.count).map { String(syllable.prefix($0)) }
-        }
-    )
 }
