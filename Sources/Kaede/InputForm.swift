@@ -1,8 +1,10 @@
 import AppKit
+import KaedeConverter
 import KaedeCore
 import SwiftUI
 
 /// Kaede's window for writing: opened over the app in front, it puts its text into that app.
+/// English and romaji are typed as they come; the converted text shows under them.
 ///
 /// Kaede is the active app while the form is open: the input method reads the keys of the active
 /// app only, so a panel that left the other app in front got plain letters where azooKey should
@@ -11,6 +13,10 @@ import SwiftUI
 final class InputForm {
     private var keys: FormKeys
     private let handler: FormKeyHandler
+    private let worker: ConversionWorker
+    private var style: PunctuationStyle
+    /// Converts the text as it is now; a newer change cancels it.
+    private var previewTask: Task<Void, Never>?
     private let inserter = TextInserter()
     private let poster = EventPoster()
     private let panel: FormPanel
@@ -23,11 +29,13 @@ final class InputForm {
     private var restoresManualAzooKey = false
     private var inserting = false
 
-    init(keys: FormKeys, fontSize: Double, handler: FormKeyHandler) {
+    init(keys: FormKeys, fontSize: Double, style: PunctuationStyle, handler: FormKeyHandler, worker: ConversionWorker) {
         self.keys = keys
+        self.style = style
         self.handler = handler
+        self.worker = worker
         panel = FormPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 640, height: 240),
+            contentRect: NSRect(x: 0, y: 0, width: 640, height: 320),
             styleMask: [.borderless, .resizable],
             backing: .buffered, defer: false
         )
@@ -36,7 +44,7 @@ final class InputForm {
         panel.backgroundColor = .clear
         panel.hasShadow = true
         panel.isMovableByWindowBackground = true
-        panel.minSize = NSSize(width: 380, height: 150)
+        panel.minSize = NSSize(width: 380, height: 220)
         panel.isFloatingPanel = true
         panel.level = .floating
         panel.hidesOnDeactivate = false
@@ -263,6 +271,28 @@ final class InputForm {
 
     private func textChanged() {
         model.isEmpty = textView.textStorage?.length == 0
+        convertForPreview()
+    }
+
+    /// Converts the text after a short pause, dropping a conversion the next change makes stale.
+    private func convertForPreview() {
+        previewTask?.cancel()
+        model.previewIsCurrent = false
+        let text = textView.string
+        let style = style
+        previewTask = Task { [worker] in
+            do {
+                // Keys typed in a burst need one conversion, after the last
+                try await Task.sleep(for: Self.previewPause)
+                let converted = try await worker.convert(text, style: style)
+                model.preview = converted
+                model.previewIsCurrent = true
+            } catch is CancellationError {
+                // A newer change converts instead
+            } catch {
+                fail("Converting the form's text failed: \(error)")
+            }
+        }
     }
 
     private func fail(_ message: String) {
@@ -289,6 +319,7 @@ final class InputForm {
     private static let switchTimeout: Duration = .milliseconds(300)
     /// How long before manual azooKey comes back, after the app has taken the text.
     private static let restoreDelay: Duration = .milliseconds(200)
+    private static let previewPause: Duration = .milliseconds(30)
 
     /// Plain text with nothing that changes words behind the user's back: spelling correction
     /// and completion would rewrite romaji as English.

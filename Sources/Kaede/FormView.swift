@@ -1,10 +1,13 @@
 import AppKit
 import SwiftUI
 
-/// What the form shows besides the text: the keys, and whether it is empty.
+/// What the form shows besides the text: the converted text, the keys, and whether it is empty.
 @MainActor
 final class FormModel: ObservableObject {
     @Published var isEmpty = true
+    @Published var preview = ""
+    /// False while the text has changed since the preview was converted.
+    @Published var previewIsCurrent = true
     @Published var fontSize: CGFloat
     @Published var insertSymbols: String
     @Published var openSymbols: String
@@ -19,7 +22,7 @@ final class FormModel: ObservableObject {
     }
 }
 
-/// The form: the text, a close button, and a strip with the keys.
+/// The form: the text, the converted text under it, a close button, and a strip with the keys.
 struct FormView: View {
     @ObservedObject var model: FormModel
     /// The text view Kaede configured, in its scroll view.
@@ -53,6 +56,8 @@ struct FormView: View {
                 .help("閉じる（書きかけは残ります）")
                 .padding(10)
             }
+            Divider().opacity(0.4).padding(.horizontal, 14)
+            PreviewView(model: model)
             Divider().opacity(0.6)
             HStack(spacing: 12) {
                 Image(systemName: "leaf.fill")
@@ -72,6 +77,33 @@ struct FormView: View {
             .font(.system(size: 11))
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
+        }
+    }
+}
+
+/// The converted text, which the insert key puts into the app. Faint until it catches up with
+/// the text.
+private struct PreviewView: View {
+    @ObservedObject var model: FormModel
+
+    var body: some View {
+        ScrollView {
+            Group {
+                if model.isEmpty {
+                    Text("変換した結果がここに出ます")
+                        .foregroundStyle(.tertiary)
+                } else {
+                    Text(model.preview)
+                        .foregroundStyle(model.previewIsCurrent ? .primary : .secondary)
+                        .textSelection(.enabled)
+                }
+            }
+            .font(.system(size: model.fontSize))
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            // Lines up with the text above: its padding, inset and line fragment padding
+            .padding(.leading, 23)
+            .padding(.trailing, 34)
+            .padding(.vertical, 10)
         }
     }
 }

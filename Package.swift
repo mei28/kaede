@@ -19,7 +19,7 @@ let package = Package(
         // 入力フォームを持つ常駐プロセス本体。
         .executableTarget(
             name: "Kaede",
-            dependencies: ["KaedeCore"]
+            dependencies: ["KaedeCore", "KaedeConverter"]
         ),
         // azooKey の変換エンジンでローマ字を変換する部分。
         .target(
