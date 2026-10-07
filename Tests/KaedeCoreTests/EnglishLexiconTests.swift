@@ -73,3 +73,30 @@ let bundledWordLists = ["en10k.txt", "extra-words.txt"].map { name in
         #expect(!lexicon.containsWord(startingWith: "ha"))
     }
 }
+
+@Suite struct EnglishLexiconRankTests {
+    @Test func knowsAWholeWordInAnyCase() {
+        let lexicon = EnglishLexicon(wordList: "the\nTokyo\n")
+        #expect(lexicon.contains("the"))
+        #expect(lexicon.contains("The"))
+        #expect(lexicon.contains("tokyo"))
+        #expect(!lexicon.contains("th"))
+    }
+
+    @Test func ranksWordsInTheOrderOfTheirList() {
+        let lexicon = EnglishLexicon(wordList: "the\nof\nand\n")
+        #expect(lexicon.rank(of: "the") == 1)
+        #expect(lexicon.rank(of: "And") == 3)
+        #expect(lexicon.rank(of: "cat") == nil)
+    }
+
+    @Test func takesTheBestRankAcrossLists() {
+        // The short list of the user's own words ranks them with the most common words
+        let lexicon = EnglishLexicon(wordLists: ["the\nof\ngithub\n", "github\n"])
+        #expect(lexicon.rank(of: "github") == 1)
+    }
+
+    @Test func countsItsWords() {
+        #expect(EnglishLexicon(wordLists: ["the\nof\n", "of\ngithub\n"]).count == 3)
+    }
+}
