@@ -48,7 +48,7 @@ restart:
     sleep 1
     open dist/Kaede.app
 
-# 起動中の Kaede を止める（メニューも Dock アイコンもないため）
+# 起動中の Kaede を止める（メニューバーの「Kaede を終了」と同じ）
 stop:
     pkill -x Kaede || echo "Kaede は起動していません"
 

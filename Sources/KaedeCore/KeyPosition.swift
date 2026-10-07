@@ -1,4 +1,4 @@
-/// The 30 physical keys whose character depends on the layout, named by their QWERTY label.
+/// The 30 letter and punctuation keys a key combo can name, by their QWERTY label.
 public enum KeyPosition: CaseIterable, Sendable {
     case q, w, e, r, t, y, u, i, o, p
     case a, s, d, f, g, h, j, k, l, semicolon
@@ -82,69 +82,5 @@ public enum KeyPosition: CaseIterable, Sendable {
         case .period: "."
         case .slash: "/"
         }
-    }
-
-    /// The character the key gives with Shift in QWERTY (US ANSI).
-    var qwertyShiftedCharacter: Character {
-        switch self {
-        case .semicolon: ":"
-        case .comma: "<"
-        case .period: ">"
-        case .slash: "?"
-        default: Character(qwertyCharacter.uppercased())
-        }
-    }
-}
-
-/// A keyboard layout, expressed as which QWERTY key each physical key produces.
-public struct Layout: Sendable {
-    private let target: @Sendable (KeyPosition) -> KeyPosition
-
-    public static let qwerty = Layout(target: { $0 })
-
-    /// Ebi keeps the vowels a o e i u on the left home row (dotfiles `.hammerspoon/ebi.lua`).
-    public static let ebi = Layout(target: { position in
-        switch position {
-        case .q: .q
-        case .w: .l
-        case .e: .comma
-        case .r: .period
-        case .t: .semicolon
-        case .y: .f
-        case .u: .w
-        case .i: .r
-        case .o: .y
-        case .p: .p
-        case .a: .a
-        case .s: .o
-        case .d: .e
-        case .f: .i
-        case .g: .u
-        case .h: .k
-        case .j: .t
-        case .k: .n
-        case .l: .s
-        case .semicolon: .h
-        case .z: .z
-        case .x: .x
-        case .c: .c
-        case .v: .v
-        case .b: .slash
-        case .n: .g
-        case .m: .d
-        case .comma: .m
-        case .period: .j
-        case .slash: .b
-        }
-    })
-
-    public func character(at position: KeyPosition, shift: Bool) -> Character {
-        let key = key(at: position)
-        return shift ? key.qwertyShiftedCharacter : key.qwertyCharacter
-    }
-
-    /// The QWERTY key this layout puts at a physical position.
-    public func key(at position: KeyPosition) -> KeyPosition {
-        target(position)
     }
 }

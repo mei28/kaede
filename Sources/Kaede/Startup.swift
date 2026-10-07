@@ -11,8 +11,5 @@ enum Startup {
         if !InputSourceGuard.isRomanEnabled() {
             terminate("The input source \(InputSourceGuard.romanID) is not enabled.")
         }
-        if !InputSourceSwitcher.isEnabled(InputSourceSwitcher.azooKeyID) {
-            terminate("The input source \(InputSourceSwitcher.azooKeyID) (azooKey) is not enabled.")
-        }
     }
 }

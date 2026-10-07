@@ -6,14 +6,10 @@ import Carbon
 /// against the current source until `timeout`.
 @MainActor
 enum InputSourceSwitcher {
-    nonisolated static let azooKeyID = "dev.ensan.inputmethod.azooKeyMac.Japanese"
     /// Long enough for a normal switch; a longer wait would stall typing.
     static let timeout: Duration = .milliseconds(300)
     /// Lets keys posted before a switch reach the app under the source they were meant for.
     static let settleDelay: Duration = .milliseconds(50)
-    /// Lets azooKey commit with an Enter before the source changes: switching away while it
-    /// still composes may drop the text.
-    static let commitDelay: Duration = .milliseconds(100)
 
     /// Whether the source became current within `timeout`.
     static func select(_ id: String) async -> Bool {
@@ -36,10 +32,6 @@ enum InputSourceSwitcher {
         }
         log.error("Switching to \(id, privacy: .public) did not take effect within \(timeout, privacy: .public).")
         return false
-    }
-
-    nonisolated static func isEnabled(_ id: String) -> Bool {
-        inputSource(id) != nil
     }
 
     /// Waits without blocking the main run loop, so Kaede keeps receiving keys.

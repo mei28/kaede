@@ -1,15 +1,17 @@
 import Carbon
 import KaedeCore
 
-/// Kaede acts only while the Roman (英字) input source is selected.
+/// Which input source is selected: the form is written in the Roman (英字) source, and the text
+/// goes into the app in it.
 enum InputSourceGuard {
     static let romanID = "com.apple.inputmethod.Kotoeri.RomajiTyping.Roman"
+    static let azooKeyID = "dev.ensan.inputmethod.azooKeyMac.Japanese"
 
-    /// Queried on every key rather than cached from change notifications, so it can never go stale.
+    /// Queried each time rather than cached from change notifications, so it can never go stale.
     static func current() -> InputSource {
         switch currentID() {
         case romanID: .roman
-        case InputSourceSwitcher.azooKeyID: .azooKey
+        case azooKeyID: .azooKey
         default: .other
         }
     }
