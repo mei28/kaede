@@ -5,6 +5,21 @@ public enum RomajiParser {
     /// reads as ー, as in ko-hi- for コーヒー.
     public static func isPlainRomajiPrefix(_ chunk: String) -> Bool {
         let characters = Array(chunk)
+        let reachable = plainReachable(characters)
+        return characters.indices.contains { start in
+            reachable[start] && unfinishedSyllables.contains(String(characters[start...]))
+        } || reachable[characters.count]
+    }
+
+    /// Whether the letters read as whole plain syllables, as an IME would turn them into kana
+    /// with nothing left over. A "-" after a syllable reads as ー.
+    public static func isPlainRomaji(_ letters: some StringProtocol) -> Bool {
+        let characters = Array(letters)
+        return !characters.isEmpty && plainReachable(characters)[characters.count]
+    }
+
+    /// Which positions whole plain syllables (and ー after one) can reach from the start.
+    private static func plainReachable(_ characters: [Character]) -> [Bool] {
         var reachable = Array(repeating: false, count: characters.count + 1)
         reachable[0] = true
         for start in characters.indices where reachable[start] {
@@ -15,9 +30,7 @@ public enum RomajiParser {
                 reachable[start + 1] = true
             }
         }
-        return characters.indices.contains { start in
-            reachable[start] && unfinishedSyllables.contains(String(characters[start...]))
-        } || reachable[characters.count]
+        return reachable
     }
 
     /// The positions where a syllable starting at `start` can end, shortest first.

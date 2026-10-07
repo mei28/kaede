@@ -72,3 +72,35 @@ import Testing
         #expect(!RomajiParser.isPlainRomajiPrefix("k-"))
     }
 }
+
+@Suite struct WholeRomajiTests {
+    @Test(arguments: ["kyouha", "watashinonamaeha", "hon", "kitte", "konnnichiha", "si", "tsu"])
+    func wholeSyllablesAreRomaji(chunk: String) {
+        #expect(RomajiParser.isPlainRomaji(chunk))
+    }
+
+    @Test(arguments: ["kyouhag", "kit", "ky"])
+    func aSyllableStillBeingTypedIsNotRomaji(chunk: String) {
+        #expect(!RomajiParser.isPlainRomaji(chunk))
+    }
+
+    @Test(arguments: ["Tokyo", "kyouHa"])
+    func uppercaseLettersAreNotRomaji(chunk: String) {
+        #expect(!RomajiParser.isPlainRomaji(chunk))
+    }
+
+    @Test(arguments: ["allyou", "xa", "ltu"])
+    func smallKanaSpellingsAreNotRomaji(chunk: String) {
+        #expect(!RomajiParser.isPlainRomaji(chunk))
+    }
+
+    @Test func aHyphenAfterASyllableReadsAsALongVowel() {
+        #expect(RomajiParser.isPlainRomaji("ra-men"))
+        #expect(RomajiParser.isPlainRomaji("ko-hi-"))
+        #expect(!RomajiParser.isPlainRomaji("-ko"))
+    }
+
+    @Test func nothingIsNotRomaji() {
+        #expect(!RomajiParser.isPlainRomaji(""))
+    }
+}
