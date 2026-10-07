@@ -8,10 +8,12 @@ enum FormSettings {
     static let fontSize = "formFontSize"
     static let defaultFontSize = 15.0
     static let fontSizes = 12.0...28.0
+    static let punctuation = "formPunctuation"
 
     static func registerDefaults() {
         UserDefaults.standard.register(defaults: [
             openKey: FormKeys.defaultOpen, insertKey: FormKeys.defaultInsert, fontSize: defaultFontSize,
+            punctuation: PunctuationStyle.touten.rawValue,
         ])
     }
 
@@ -44,5 +46,18 @@ enum FormSettings {
 
     static func save(fontSize size: Double) {
         UserDefaults.standard.set(size, forKey: fontSize)
+    }
+
+    /// Stops Kaede when the setting names no pair, as a hand-written default could.
+    static func loadPunctuation() -> PunctuationStyle {
+        let pair = UserDefaults.standard.string(forKey: punctuation)
+        guard let pair, let style = PunctuationStyle(rawValue: pair) else {
+            terminate("The form's punctuation \(pair ?? "nil") is none of \(PunctuationStyle.allCases.map(\.rawValue)).")
+        }
+        return style
+    }
+
+    static func save(punctuation style: PunctuationStyle) {
+        UserDefaults.standard.set(style.rawValue, forKey: punctuation)
     }
 }

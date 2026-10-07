@@ -122,6 +122,11 @@ final class InputForm {
         textView.font = .systemFont(ofSize: fontSize)
     }
 
+    func apply(style: PunctuationStyle) {
+        self.style = style
+        convertForPreview()
+    }
+
     var openSettings: (() -> Void)? {
         get { model.openSettings }
         set { model.openSettings = newValue }

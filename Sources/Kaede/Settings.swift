@@ -17,6 +17,7 @@ final class SettingsModel: ObservableObject {
     @Published private(set) var recording: Recording?
     @Published var keyMessage: String?
     @Published var fontSize: Double
+    @Published private(set) var punctuation: PunctuationStyle
     @Published private(set) var launchesAtLogin: Bool
     @Published var loginMessage: String?
 
@@ -26,9 +27,10 @@ final class SettingsModel: ObservableObject {
     private let hotKey: HotKey
     private var recorder: Any?
 
-    init(keys: FormKeys, fontSize: Double, form: InputForm, hotKey: HotKey) {
+    init(keys: FormKeys, fontSize: Double, punctuation: PunctuationStyle, form: InputForm, hotKey: HotKey) {
         self.keys = keys
         self.fontSize = fontSize
+        self.punctuation = punctuation
         self.form = form
         self.hotKey = hotKey
         launchesAtLogin = SMAppService.mainApp.status == .enabled
@@ -128,6 +130,14 @@ final class SettingsModel: ObservableObject {
         form.apply(fontSize: size)
     }
 
+    // MARK: Conversion
+
+    func setPunctuation(_ style: PunctuationStyle) {
+        punctuation = style
+        FormSettings.save(punctuation: style)
+        form.apply(style: style)
+    }
+
     // MARK: Login
 
     func setLaunchesAtLogin(_ launches: Bool) {
@@ -170,6 +180,13 @@ struct SettingsView: View {
                     Text("文字の大きさ")
                     Slider(value: Binding(get: { model.fontSize }, set: { model.setFontSize($0.rounded()) }), in: FormSettings.fontSizes, step: 1)
                     Text("\(Int(model.fontSize)) pt").monospacedDigit().frame(width: 44, alignment: .trailing)
+                }
+            }
+            Section("変換") {
+                Picker("日本語の句読点", selection: Binding(get: { model.punctuation }, set: { model.setPunctuation($0) })) {
+                    ForEach(PunctuationStyle.allCases, id: \.self) { style in
+                        Text(style.rawValue).tag(style)
+                    }
                 }
             }
             Section("起動") {
