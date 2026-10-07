@@ -37,10 +37,6 @@ set-key name:
     @test "{{name}}" = jev || (echo "name は jev" && exit 1)
     security add-generic-password -U -a kaede -s com.mei28.kaede.{{name}} -w
 
-# 語ごとの正解の表（Evaluation/words.tsv）で、切り替えの良し悪しを Jev の答えで数える（Jev に問い合わせる）
-eval:
-    swift run -c release KaedeEval
-
 # 誤って日本語に切り替わった英単語や名前を、英語として守る語の一覧に足す（反映は just bundle の後）
 add-word word:
     @grep -qxi "{{word}}" Resources/extra-words.txt && echo "{{word}} はもう入っています" || (echo "{{word}}" >> Resources/extra-words.txt && echo "{{word}} を足しました。just bundle で作り直すと反映されます")

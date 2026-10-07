@@ -7,7 +7,7 @@ let package = Package(
         .macOS(.v26)
     ],
     targets: [
-        // テスト可能なロジック層（配列、キーの並び、ローマ字の判定、切り替えの判断、評価）。AppKit に依存しない。
+        // テスト可能なロジック層（配列、キーの並び、ローマ字の判定、切り替えの判断）。AppKit に依存しない。
         .target(
             name: "KaedeCore"
         ),
@@ -20,11 +20,6 @@ let package = Package(
         .target(
             name: "KaedeRemote",
             dependencies: ["KaedeCore"]
-        ),
-        // 語ごとの正解の表で、切り替えの良し悪しを Jev の答えで数える開発用のコマンド（just eval）。
-        .executableTarget(
-            name: "KaedeEval",
-            dependencies: ["KaedeCore", "KaedeRemote"]
         ),
         // KaedeCore のユニットテスト（swift test で実行）。
         .testTarget(
