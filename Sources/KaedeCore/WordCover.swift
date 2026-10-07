@@ -64,7 +64,7 @@ public struct WordCover: Sendable {
             return nil
         }
         let romaji = String(characters[start...])
-        guard Self.particles.contains(where: romaji.hasPrefix) else {
+        guard Particles.romaji.contains(where: romaji.hasPrefix) else {
             return nil
         }
         return [.english([String(characters[..<start])]), .romaji(romaji)]
@@ -106,10 +106,8 @@ public struct WordCover: Sendable {
         return pieces
     }
 
-    /// Particles, which follow a word.
-    static let particles = ["no", "ga", "wo", "ni", "de", "to", "ha", "mo", "wa", "he", "kara", "made", "yori"]
     /// Particles and verb endings that English words share (no, to, he, made, site).
-    static let functionWords = Set(particles + ["site", "sita", "shita", "shite", "suru", "simasu", "shimasu"])
+    static let functionWords = Set(Particles.romaji + ["site", "sita", "shita", "shite", "suru", "simasu", "shimasu"])
 }
 
 extension WordCover {

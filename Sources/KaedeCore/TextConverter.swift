@@ -22,12 +22,7 @@ public struct TextConverter: Sendable {
     private func convertLine(_ line: Substring, style: PunctuationStyle, kanji: (String) throws -> String) rethrows -> String {
         try Assembler.assemble(segmenter.segments(of: line), style: style) { clause in
             // On its own a particle has no sentence to choose its kanji by (の would be 野)
-            try Self.particleKana[clause] ?? kanji(clause)
+            try Particles.kana[clause] ?? kanji(clause)
         }
     }
-
-    private static let particleKana: [String: String] = [
-        "no": "の", "ga": "が", "wo": "を", "ni": "に", "de": "で", "to": "と", "ha": "は",
-        "mo": "も", "wa": "わ", "he": "へ", "kara": "から", "made": "まで", "yori": "より",
-    ]
 }

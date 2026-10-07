@@ -78,7 +78,7 @@ public struct LineSegmenter: Sendable {
         for (index, unit) in units.enumerated() {
             guard case let .romaji(text) = unit.kind, index + 1 < units.count,
                   case .english = units[index + 1].kind,
-                  let particle = Self.particlesLongestFirst.first(where: { particle in
+                  let particle = Particles.romaji.first(where: { particle in
                       text.hasSuffix(particle) && text.count - particle.count >= 3 && lexicon.contains(text.dropLast(particle.count))
                   })
             else {
@@ -90,8 +90,6 @@ public struct LineSegmenter: Sendable {
         }
         return result
     }
-
-    private static let particlesLongestFirst = WordCover.particles.sorted { $0.count > $1.count }
 
     // MARK: Context
 
@@ -160,7 +158,7 @@ public struct LineSegmenter: Sendable {
             if unit.endsSentence {
                 return 0
             }
-            if case let .romaji(text) = unit.kind, WordCover.particles.contains(text) {
+            if case let .romaji(text) = unit.kind, Particles.kana[text] != nil {
                 continue
             }
             if case .ambiguous = unit.kind {
