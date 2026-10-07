@@ -9,6 +9,8 @@ private let lexicon = EnglishLexicon(wordList: """
     python
     bug
     no
+    push
+    commit
     """)
 
 private let kanji: [String: String] = [
@@ -42,6 +44,12 @@ private let kanji: [String: String] = [
         // On its own azooKey may well write の as 野
         #expect(convert("python no bug") == "python の bug")
         #expect(convert("pythonnobug") == "python の bug")
+    }
+
+    @Test func writesALoneVerbEndingWithoutTheConverter() {
+        // On its own azooKey writes した as 下
+        #expect(convert("pushshita") == "push した")
+        #expect(convert("commit site push simasu") == "commit して push します")
     }
 
     @Test func convertsNothingToNothing() {

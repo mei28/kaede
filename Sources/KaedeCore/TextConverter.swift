@@ -21,8 +21,9 @@ public struct TextConverter: Sendable {
 
     private func convertLine(_ line: Substring, style: PunctuationStyle, kanji: (String) throws -> String) rethrows -> String {
         try Assembler.assemble(segmenter.segments(of: line), style: style) { clause in
-            // On its own a particle has no sentence to choose its kanji by (の would be 野)
-            try FunctionWords.particles[clause] ?? kanji(clause)
+            // On its own a particle or verb ending has no sentence to choose its kanji by (の would
+            // be 野, した 下)
+            try FunctionWords.kana(of: clause) ?? kanji(clause)
         }
     }
 }

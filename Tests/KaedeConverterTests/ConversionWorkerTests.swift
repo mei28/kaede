@@ -32,6 +32,7 @@ private let worker = ConversionWorker(
         ("grokga", "grok が"),
         ("ra-men", "ラーメン"),
         // Names of the user's own tools, from extra-words.txt
+        ("githubnipushshita", "github に push した"),
         ("kyouhaclaudetohanashita", "今日は claude と話した"),
     ])
     func convertsALine(typed: String, expected: String) async throws {
