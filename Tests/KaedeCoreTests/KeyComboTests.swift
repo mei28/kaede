@@ -33,6 +33,13 @@ import Testing
         #expect(try KeyCombo(parsing: text).symbols == symbols)
     }
 
+    @Test func supportsOnlyTheKeysItCanName() {
+        #expect(KeyCombo.supports(keyCode: KeyPosition.k.keyCode))
+        #expect(KeyCombo.supports(keyCode: 36))
+        #expect(!KeyCombo.supports(keyCode: 96))  // F5
+        #expect(!KeyCombo.supports(keyCode: 53))  // Escape
+    }
+
     @Test func matchesItsKeyWithExactlyItsModifiers() throws {
         let insert = try KeyCombo(parsing: "cmd+enter")
         #expect(insert.matches(keyCode: 36, modifiers: [.command]))

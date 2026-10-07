@@ -10,7 +10,7 @@ import KaedeRemote
 @MainActor
 final class FormKeyHandler {
     private let engine: SwitchEngine
-    private let jev: JevSwitchRequest
+    private var jev: JevSwitchRequest
     private let transport = URLSessionTransport()
     private let poster = EventPoster()
     private var monitor: Any?
@@ -45,6 +45,11 @@ final class FormKeyHandler {
                 EventBox(event: self.map { $0.handle(event) } ?? event)
             }.event
         }
+    }
+
+    /// A new API key from the settings, used from the next question.
+    func useJevKey(_ apiKey: String) {
+        jev = JevSwitchRequest(apiKey: apiKey)
     }
 
     /// Kaede is typing into the app to move a word to azooKey or English back.

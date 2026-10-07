@@ -13,16 +13,17 @@ final class FormModel: ObservableObject {
 
     @Published var mode = Mode.english
     @Published var isEmpty = true
-    @Published var fontSize: CGFloat = 15
-    let insertSymbols: String
-    let openSymbols: String
+    @Published var fontSize: CGFloat
+    @Published var insertSymbols: String
+    @Published var openSymbols: String
     var close: () -> Void = {}
     /// Opens the settings; nil until there are settings to open.
     var openSettings: (() -> Void)?
 
-    init(insertSymbols: String, openSymbols: String) {
+    init(insertSymbols: String, openSymbols: String, fontSize: CGFloat) {
         self.insertSymbols = insertSymbols
         self.openSymbols = openSymbols
+        self.fontSize = fontSize
     }
 }
 

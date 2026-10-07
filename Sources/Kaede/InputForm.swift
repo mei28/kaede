@@ -11,7 +11,7 @@ import SwiftUI
 /// key handler judges the keys typed into the form.
 @MainActor
 final class InputForm {
-    private let keys: FormKeys
+    private var keys: FormKeys
     private let handler: FormKeyHandler
     private let inserter = TextInserter()
     private let poster = EventPoster()
@@ -25,7 +25,7 @@ final class InputForm {
     private var restoresManualAzooKey = false
     private var inserting = false
 
-    init(keys: FormKeys, handler: FormKeyHandler) {
+    init(keys: FormKeys, fontSize: Double, handler: FormKeyHandler) {
         self.keys = keys
         self.handler = handler
         panel = FormPanel(
@@ -62,7 +62,7 @@ final class InputForm {
         textView.drawsBackground = false
         textView.textContainerInset = NSSize(width: 4, height: 6)
 
-        model = FormModel(insertSymbols: keys.insert.symbols, openSymbols: keys.open.symbols)
+        model = FormModel(insertSymbols: keys.insert.symbols, openSymbols: keys.open.symbols, fontSize: fontSize)
         textView.font = .systemFont(ofSize: model.fontSize)
         let background = NSVisualEffectView()
         background.material = .popover
@@ -101,6 +101,23 @@ final class InputForm {
         }
         insert()
         return true
+    }
+
+    /// Settings changed in the panel take effect at once.
+    func apply(keys: FormKeys) {
+        self.keys = keys
+        model.insertSymbols = keys.insert.symbols
+        model.openSymbols = keys.open.symbols
+    }
+
+    func apply(fontSize: Double) {
+        model.fontSize = fontSize
+        textView.font = .systemFont(ofSize: fontSize)
+    }
+
+    var openSettings: (() -> Void)? {
+        get { model.openSettings }
+        set { model.openSettings = newValue }
     }
 
     /// The open key: shows the form over the app in front, or hides it keeping the draft.

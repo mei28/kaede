@@ -47,6 +47,11 @@ public struct KeyCombo: Equatable, Sendable, CustomStringConvertible {
         self.init(keyCode: keyCode, modifiers: modifiers)
     }
 
+    /// Whether a key can be part of a combo: one of the 30, a digit, enter, space or tab.
+    public static func supports(keyCode: UInt16) -> Bool {
+        KeyPosition(keyCode: keyCode) != nil || namedKeys.contains { $0.keyCode == keyCode }
+    }
+
     /// The key pressed with exactly these modifiers held.
     public func matches(keyCode: UInt16, modifiers: Modifiers) -> Bool {
         self.keyCode == keyCode && self.modifiers == modifiers

@@ -1,15 +1,23 @@
 import Foundation
 import KaedeCore
 
-/// The input form's keys from the app's settings (`just form-key`), checked at startup.
+/// The input form's settings in the app's defaults (the settings panel, `just form-key`).
 enum FormSettings {
     static let openKey = "formOpenKey"
     static let insertKey = "formInsertKey"
+    static let fontSize = "formFontSize"
+    static let defaultFontSize = 15.0
+    static let fontSizes = 12.0...28.0
+
+    static func registerDefaults() {
+        UserDefaults.standard.register(defaults: [
+            openKey: FormKeys.defaultOpen, insertKey: FormKeys.defaultInsert, fontSize: defaultFontSize,
+        ])
+    }
 
     /// Stops Kaede when the settings hold keys it cannot use.
     static func load() -> FormKeys {
         let defaults = UserDefaults.standard
-        defaults.register(defaults: [openKey: FormKeys.defaultOpen, insertKey: FormKeys.defaultInsert])
         guard let open = defaults.string(forKey: openKey), let insert = defaults.string(forKey: insertKey) else {
             preconditionFailure("registered defaults are strings")
         }
@@ -18,5 +26,23 @@ enum FormSettings {
         } catch {
             terminate("The form keys in the settings cannot be used (\(openKey) = \(open), \(insertKey) = \(insert)): \(error). Change them with `just form-key`.")
         }
+    }
+
+    static func save(_ keys: FormKeys) {
+        UserDefaults.standard.set(keys.open.description, forKey: openKey)
+        UserDefaults.standard.set(keys.insert.description, forKey: insertKey)
+    }
+
+    /// Stops Kaede when the size is out of range, as a hand-written default could be.
+    static func loadFontSize() -> Double {
+        let size = UserDefaults.standard.double(forKey: fontSize)
+        guard fontSizes.contains(size) else {
+            terminate("The form's font size \(size) is outside \(fontSizes).")
+        }
+        return size
+    }
+
+    static func save(fontSize size: Double) {
+        UserDefaults.standard.set(size, forKey: fontSize)
     }
 }
