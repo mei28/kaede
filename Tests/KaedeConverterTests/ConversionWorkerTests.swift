@@ -31,6 +31,8 @@ private let worker = ConversionWorker(
         ("kubernetes", "kubernetes"),
         ("grokga", "grok が"),
         ("ra-men", "ラーメン"),
+        // Names of the user's own tools, from extra-words.txt
+        ("kyouhaclaudetohanashita", "今日は claude と話した"),
     ])
     func convertsALine(typed: String, expected: String) async throws {
         let converted = try await worker.convert(typed, style: .touten)

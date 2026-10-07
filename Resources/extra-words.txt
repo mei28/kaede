@@ -3,3 +3,5 @@ ebi
 jev
 azookey
 zenzai
+github
+claude
