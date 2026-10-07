@@ -1,11 +1,9 @@
 import Foundation
 
-/// English words, used to keep letters that may still become an English word from switching.
+/// English words and how common they are, for finding English among romaji.
 public struct EnglishLexicon: Sendable {
-    /// Lowercased, so "The" at the start of a sentence and "tokyo" typed in lowercase both match,
-    /// and sorted, so the words sharing a start sit next to each other.
-    private let sortedWords: [String]
-    /// Each word's line in the first list that has it nearest the top, from 1.
+    /// Each word's line in the list that has it nearest the top, from 1. Lowercased, so "The" at
+    /// the start of a sentence and "tokyo" typed in lowercase both match.
     private let ranks: [String: Int]
 
     /// - Parameter wordList: one word per line, as in `/usr/share/dict/words`.
@@ -25,7 +23,6 @@ public struct EnglishLexicon: Sendable {
             }
         }
         self.ranks = ranks
-        sortedWords = ranks.keys.sorted()
     }
 
     /// How many words the lexicon knows.
@@ -52,23 +49,5 @@ public struct EnglishLexicon: Sendable {
 
     public init(contentsOfFiles paths: [String]) throws {
         self.init(wordLists: try paths.map { try String(contentsOfFile: $0, encoding: .utf8) })
-    }
-
-    /// Whether some word starts with `prefix` (a word starts with itself): letters typed so far
-    /// may still be heading for an English word.
-    public func containsWord(startingWith prefix: String) -> Bool {
-        let prefix = prefix.lowercased()
-        // The first word not ordered before the prefix is the first one that could start with it
-        var low = 0
-        var high = sortedWords.count
-        while low < high {
-            let middle = (low + high) / 2
-            if sortedWords[middle] < prefix {
-                low = middle + 1
-            } else {
-                high = middle
-            }
-        }
-        return low < sortedWords.count && sortedWords[low].hasPrefix(prefix)
     }
 }
