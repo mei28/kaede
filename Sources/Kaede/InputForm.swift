@@ -17,6 +17,8 @@ final class InputForm {
     private var style: PunctuationStyle
     /// Converts the text as it is now; a newer change cancels it.
     private var previewTask: Task<Void, Never>?
+    /// The last conversion that finished, and what it converted.
+    private var preview: (text: String, style: PunctuationStyle, converted: String)?
     private let inserter = TextInserter()
     private let poster = EventPoster()
     private let panel: FormPanel
@@ -241,9 +243,21 @@ final class InputForm {
                 return
             }
         }
+        let text = textView.string
+        let converted: String
+        if let preview, preview.text == text, preview.style == style {
+            converted = preview.converted
+        } else {
+            do {
+                converted = try await worker.convert(text, style: style)
+            } catch {
+                fail("Converting the form's text failed: \(error)")
+                return
+            }
+        }
         let pieces: [TypingPiece]
         do {
-            pieces = try TypingPlan.pieces(for: textView.string)
+            pieces = try TypingPlan.pieces(for: converted)
         } catch {
             fail("The form's text cannot be typed: \(error)")
             return
@@ -285,6 +299,7 @@ final class InputForm {
                 // Keys typed in a burst need one conversion, after the last
                 try await Task.sleep(for: Self.previewPause)
                 let converted = try await worker.convert(text, style: style)
+                preview = (text, style, converted)
                 model.preview = converted
                 model.previewIsCurrent = true
             } catch is CancellationError {
