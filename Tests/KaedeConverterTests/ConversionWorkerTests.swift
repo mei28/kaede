@@ -60,3 +60,44 @@ private let worker = ConversionWorker(
         }
     }
 }
+
+@Suite struct ConversionWorkerChoosingTests {
+    private func unit(_ kind: ConversionUnit.Kind, reading: String) -> ConversionUnit {
+        ConversionUnit(kind: kind, text: "", reading: reading, range: 0..<0, line: 0)
+    }
+
+    @Test func listsThePhrasesCandidates() async throws {
+        let candidates = try await worker.candidates(for: unit(.bunsetsu(clause: "kyouha", index: 0), reading: "きょうは"))
+        #expect(candidates.contains("今日は"))
+        #expect(candidates.contains("強は"))
+    }
+
+    @Test func offersEnglishThatReadsAsRomajiInJapaneseToo() async throws {
+        let candidates = try await worker.candidates(for: unit(.english("sake"), reading: "sake"))
+        #expect(candidates.first == "sake")
+        #expect(candidates.contains("酒"))
+    }
+
+    @Test func offersOtherEnglishOnlyAsTyped() async throws {
+        #expect(try await worker.candidates(for: unit(.english("google"), reading: "google")) == ["google"])
+    }
+
+    @Test func convertsBothPhrasesAgainAfterMovingTheirBorder() async throws {
+        var phrases = [Bunsetsu(reading: "きょうはてんきがいい", text: "強は天気がいい")]
+        for _ in 0..<6 {
+            phrases = try await worker.resized(phrases, at: 0, by: -1)
+        }
+        #expect(phrases == [Bunsetsu(reading: "きょうは", text: "今日は"), Bunsetsu(reading: "てんきがいい", text: "天気がいい")])
+    }
+
+    @Test func leavesPhrasesThatCannotResizeAsTheyAre() async throws {
+        let phrases = [Bunsetsu(reading: "きょうは", text: "今日は")]
+        #expect(try await worker.resized(phrases, at: 0, by: 1) == phrases)
+    }
+
+    @Test func convertsWithTheChoices() async throws {
+        var choices = ConversionChoices()
+        choices.clauses["kyouhatenkigaii"] = [Bunsetsu(reading: "きょうは", text: "今日は"), Bunsetsu(reading: "てんきがいい", text: "天気がいい")]
+        #expect(try await worker.convert("kyouhatenkigaii", style: .touten, choices: choices).text == "今日は天気がいい")
+    }
+}

@@ -12,6 +12,7 @@ public actor ConversionWorker {
     /// Made on first use: it loads the whole dictionary, about a second.
     private lazy var azooKey = AzooKeyConverter(dictionaryDirectory: dictionaryDirectory, memoryDirectory: memoryDirectory)
     private var clauses: [String: [Bunsetsu]] = [:]
+    private var readingCandidates: [String: [String]] = [:]
 
     public init(dictionaryDirectory: URL, memoryDirectory: URL, lexicon: EnglishLexicon) {
         self.dictionaryDirectory = dictionaryDirectory
@@ -25,9 +26,9 @@ public actor ConversionWorker {
     }
 
     /// Throws CancellationError when the task is cancelled: a newer text has taken its place.
-    public func convert(_ text: String, style: PunctuationStyle) throws -> ConvertedText {
+    public func convert(_ text: String, style: PunctuationStyle, choices: ConversionChoices = ConversionChoices()) throws -> ConvertedText {
         try Task.checkCancellation()
-        return try converter.convert(text, style: style) { clause in
+        return try converter.convert(text, style: style, choices: choices) { clause in
             try Task.checkCancellation()
             return try kanji(for: clause)
         }
@@ -43,6 +44,50 @@ public actor ConversionWorker {
         let converted = try azooKey.convert(romaji: clause)
         clauses[clause] = converted
         return converted
+    }
+
+    /// What a unit can become: a phrase's candidates for its reading; English as typed, then, when
+    /// it reads as romaji, its Japanese candidates (sake → 酒).
+    public func candidates(for unit: ConversionUnit) throws -> [String] {
+        switch unit.kind {
+        case .bunsetsu:
+            return try candidates(reading: unit.reading)
+        case let .english(typed):
+            guard RomajiParser.isPlainRomaji(typed) else {
+                return [typed]
+            }
+            let reading = try kanji(for: typed).map(\.reading).joined()
+            return try [typed] + candidates(reading: reading)
+        }
+    }
+
+    /// The phrases with the border after the one at `index` moved by a character, the two changed
+    /// phrases converted again; the same phrases when the border cannot move.
+    public func resized(_ phrases: [Bunsetsu], at index: Int, by delta: Int) throws -> [Bunsetsu] {
+        guard let readings = PhraseReadings.resized(phrases.map(\.reading), at: index, by: delta) else {
+            return phrases
+        }
+        // The next phrase either changed too or went away; phrases past it only moved
+        let shift = readings.count - phrases.count
+        let changed = shift < 0 ? index...index : index...(index + 1)
+        return try readings.indices.map { position in
+            if changed.contains(position) {
+                return Bunsetsu(reading: readings[position], text: try candidates(reading: readings[position])[0])
+            }
+            return phrases[position < index ? position : position - shift]
+        }
+    }
+
+    private func candidates(reading: String) throws -> [String] {
+        if let known = readingCandidates[reading] {
+            return known
+        }
+        if readingCandidates.count >= Self.clauseLimit {
+            readingCandidates.removeAll()
+        }
+        let candidates = try azooKey.candidates(reading: reading)
+        readingCandidates[reading] = candidates
+        return candidates
     }
 
     /// Enough for every clause of a long draft; dropping them all past it keeps the memory small.
