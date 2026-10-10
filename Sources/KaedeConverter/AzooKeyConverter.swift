@@ -1,4 +1,5 @@
 import Foundation
+import KaedeCore
 import KanaKanjiConverterModule
 
 public enum AzooKeyConverterError: Error, Equatable {
@@ -33,14 +34,15 @@ public final class AzooKeyConverter {
     }
 
     /// The first candidate for a clause of romaji: letters, "-" for ー, and digits.
-    public func convert(romaji: String) throws -> String {
+    public func convert(romaji: String) throws -> [Bunsetsu] {
         // The next request would otherwise build on this one's input
         defer { converter.stopComposition() }
-        let results = converter.requestCandidates(Self.composingText(for: romaji), options: options)
+        let composing = Self.composingText(for: romaji)
+        let results = converter.requestCandidates(composing, options: options)
         guard let first = results.mainResults.first else {
             throw AzooKeyConverterError.noCandidate(romaji: romaji)
         }
-        return first.text
+        return [Bunsetsu(reading: composing.convertTarget, text: first.text)]
     }
 
     /// The default roman2kana table has no "-" and leaves a final "n" unconverted until an IME

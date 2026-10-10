@@ -22,20 +22,20 @@ let checkedOutDictionary = URL(filePath: #filePath)
         ("kinounoare", "昨日のあれ"),
     ])
     func convertsRomaji(romaji: String, expected: String) throws {
-        let converted = try converter.convert(romaji: romaji)
+        let converted = try converter.convert(romaji: romaji).map(\.text).joined()
         #expect(converted == expected)
     }
 
     @Test func completesADanglingN() throws {
-        #expect(try converter.convert(romaji: "hon") == "本")
+        #expect(try converter.convert(romaji: "hon").map(\.text).joined() == "本")
     }
 
     @Test func readsAHyphenAsALongVowel() throws {
-        #expect(try converter.convert(romaji: "ra-men") == "ラーメン")
+        #expect(try converter.convert(romaji: "ra-men").map(\.text).joined() == "ラーメン")
     }
 
     @Test func keepsDigitsHalfWidth() throws {
-        let converted = try converter.convert(romaji: "10ji")
+        let converted = try converter.convert(romaji: "10ji").map(\.text).joined()
         #expect(converted.hasPrefix("10"))
         #expect(!converted.contains("じ"))
     }

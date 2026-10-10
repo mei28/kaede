@@ -16,9 +16,9 @@ private func assemble(_ segments: [Segment], style: PunctuationStyle = .touten) 
     Assembler.assemble(segments, style: style) { clause in
         guard let converted = kanji[clause] else {
             Issue.record("no conversion for \(clause)")
-            return clause
+            return []
         }
-        return converted
+        return [Bunsetsu(reading: clause, text: converted)]
     }
 }
 

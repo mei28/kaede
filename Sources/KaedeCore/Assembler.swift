@@ -20,7 +20,8 @@ public enum PunctuationStyle: String, CaseIterable, Sendable {
 /// to punctuation and where a digit faces the other language (iPhone15を), which keep the spaces
 /// as typed. English keeps its own spacing; Japanese has none.
 public enum Assembler {
-    public static func assemble(_ segments: [Segment], style: PunctuationStyle, convert: (String) throws -> String) rethrows -> String {
+    /// - Parameter convert: converts a clause of romaji into its phrases.
+    public static func assemble(_ segments: [Segment], style: PunctuationStyle, convert: (String) throws -> [Bunsetsu]) rethrows -> String {
         var line = ""
         var previous: Part?
         for segment in segments {
@@ -69,13 +70,13 @@ private struct Part {
     var role: Role
     var spaceBefore: Bool
 
-    init(_ segment: Segment, style: PunctuationStyle, convert: (String) throws -> String) rethrows {
+    init(_ segment: Segment, style: PunctuationStyle, convert: (String) throws -> [Bunsetsu]) rethrows {
         spaceBefore = segment.spaceBefore
         switch segment.content {
         case let .english(text):
             (self.text, language, role) = (text, .english, .words)
         case let .romaji(clause):
-            (text, language, role) = (try convert(clause), .japanese, .words)
+            (text, language, role) = (try convert(clause).map(\.text).joined(), .japanese, .words)
         case let .japaneseText(text):
             (self.text, language, role) = (text, .japanese, .words)
         case let .digits(digits):

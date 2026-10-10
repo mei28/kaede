@@ -11,7 +11,7 @@ public actor ConversionWorker {
     private let converter: TextConverter
     /// Made on first use: it loads the whole dictionary, about a second.
     private lazy var azooKey = AzooKeyConverter(dictionaryDirectory: dictionaryDirectory, memoryDirectory: memoryDirectory)
-    private var clauses: [String: String] = [:]
+    private var clauses: [String: [Bunsetsu]] = [:]
 
     public init(dictionaryDirectory: URL, memoryDirectory: URL, lexicon: EnglishLexicon) {
         self.dictionaryDirectory = dictionaryDirectory
@@ -33,7 +33,7 @@ public actor ConversionWorker {
         }
     }
 
-    private func kanji(for clause: String) throws -> String {
+    private func kanji(for clause: String) throws -> [Bunsetsu] {
         if let known = clauses[clause] {
             return known
         }

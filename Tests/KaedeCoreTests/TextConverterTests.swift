@@ -25,9 +25,9 @@ private let kanji: [String: String] = [
         converter.convert(text, style: .touten) { clause in
             guard let converted = kanji[clause] else {
                 Issue.record("asked to convert \(clause)")
-                return clause
+                return []
             }
-            return converted
+            return [Bunsetsu(reading: clause, text: converted)]
         }
     }
 
