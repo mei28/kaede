@@ -1,4 +1,5 @@
 import Foundation
+import KaedeCore
 import Testing
 @testable import KaedeConverter
 
@@ -32,6 +33,21 @@ let checkedOutDictionary = URL(filePath: #filePath)
 
     @Test func readsAHyphenAsALongVowel() throws {
         #expect(try converter.convert(romaji: "ra-men").map(\.text).joined() == "ラーメン")
+    }
+
+    @Test func givesAClauseAsOnePhraseWithItsReading() throws {
+        #expect(try converter.convert(romaji: "kyouhatenkigaii") == [Bunsetsu(reading: "きょうはてんきがいい", text: "強は天気がいい")])
+    }
+
+    @Test func listsCandidatesForAReadingOfThatLength() throws {
+        let candidates = try converter.candidates(reading: "きょうは")
+        #expect(candidates.contains("今日は"))
+        #expect(candidates.contains("強は"))
+        #expect(candidates.contains("きょうは"))
+        #expect(candidates.contains("キョウハ"))
+        // 今日 reads きょう: it would leave は behind
+        #expect(!candidates.contains("今日"))
+        #expect(Set(candidates).count == candidates.count)
     }
 
     @Test func keepsDigitsHalfWidth() throws {

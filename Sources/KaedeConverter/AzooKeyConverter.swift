@@ -4,6 +4,7 @@ import KanaKanjiConverterModule
 
 public enum AzooKeyConverterError: Error, Equatable {
     case noCandidate(romaji: String)
+    case noCandidateForReading(String)
 }
 
 /// Converts romaji to Japanese with AzooKeyKanaKanjiConverter, taking its first candidate.
@@ -33,7 +34,11 @@ public final class AzooKeyConverter {
         )
     }
 
-    /// The first candidate for a clause of romaji: letters, "-" for ー, and digits.
+    /// The first candidate for a clause of romaji (letters, "-" for ー, and digits), as one
+    /// phrase: as in azooKey itself, the user splits it into phrases when choosing.
+    ///
+    /// azooKey's candidates cannot be split into phrases: their words cross phrase borders
+    /// (強 | は天気 | がいい for 強は天気がいい).
     public func convert(romaji: String) throws -> [Bunsetsu] {
         // The next request would otherwise build on this one's input
         defer { converter.stopComposition() }
@@ -43,6 +48,23 @@ public final class AzooKeyConverter {
             throw AzooKeyConverterError.noCandidate(romaji: romaji)
         }
         return [Bunsetsu(reading: composing.convertTarget, text: first.text)]
+    }
+
+    /// The candidates for a reading on its own, each reading all of it: the choices for one phrase.
+    public func candidates(reading: String) throws -> [String] {
+        defer { converter.stopComposition() }
+        var composing = ComposingText()
+        composing.insertAtCursorPosition(reading, inputStyle: .direct)
+        let results = converter.requestCandidates(composing, options: options)
+        var texts: [String] = []
+        // Words that read only the start (今日 for きょうは) would drop the rest of the phrase
+        for candidate in results.mainResults where candidate.rubyCount == reading.count && !texts.contains(candidate.text) {
+            texts.append(candidate.text)
+        }
+        guard !texts.isEmpty else {
+            throw AzooKeyConverterError.noCandidateForReading(reading)
+        }
+        return texts
     }
 
     /// The default roman2kana table has no "-" and leaves a final "n" unconverted until an IME
