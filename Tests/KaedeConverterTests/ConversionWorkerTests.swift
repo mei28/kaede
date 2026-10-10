@@ -68,18 +68,18 @@ private let worker = ConversionWorker(
 
     @Test func listsThePhrasesCandidates() async throws {
         let candidates = try await worker.candidates(for: unit(.bunsetsu(clause: "kyouha", index: 0), reading: "きょうは"))
-        #expect(candidates.contains("今日は"))
-        #expect(candidates.contains("強は"))
+        #expect(candidates.contains(ConversionCandidate("今日は", .japanese)))
+        #expect(candidates.contains(ConversionCandidate("強は", .japanese)))
     }
 
     @Test func offersEnglishThatReadsAsRomajiInJapaneseToo() async throws {
         let candidates = try await worker.candidates(for: unit(.english("sake"), reading: "sake"))
-        #expect(candidates.first == "sake")
-        #expect(candidates.contains("酒"))
+        #expect(candidates.first == ConversionCandidate("sake", .english))
+        #expect(candidates.contains(ConversionCandidate("酒", .japanese)))
     }
 
     @Test func offersOtherEnglishOnlyAsTyped() async throws {
-        #expect(try await worker.candidates(for: unit(.english("google"), reading: "google")) == ["google"])
+        #expect(try await worker.candidates(for: unit(.english("google"), reading: "google")) == [ConversionCandidate("google", .english)])
     }
 
     @Test func convertsBothPhrasesAgainAfterMovingTheirBorder() async throws {

@@ -86,17 +86,17 @@ extension InputForm {
     }
 
     private func stepCandidate(by delta: Int) async {
-        guard let text = selection?.stepCandidate(by: delta) else { return }
-        await choose(text)
+        guard let candidate = selection?.stepCandidate(by: delta) else { return }
+        await choose(candidate)
     }
 
     /// Chooses the numbered candidate and goes on to the next unit, or ends after the last.
     private func pickCandidate(number: Int) async {
-        guard let text = selection?.pickCandidate(number: number) else {
+        guard let candidate = selection?.pickCandidate(number: number) else {
             NSSound.beep()
             return
         }
-        await choose(text)
+        await choose(candidate)
         if selection?.move(by: 1) == true {
             await showCandidates()
         } else {
@@ -104,9 +104,9 @@ extension InputForm {
         }
     }
 
-    private func choose(_ text: String) async {
+    private func choose(_ candidate: ConversionCandidate) async {
         guard let selection else { return }
-        choices = selection.choices(choices, choosing: text)
+        choices = selection.choices(choices, choosing: candidate)
         publishSelection()
         _ = await currentConversion()
     }
@@ -145,7 +145,7 @@ extension InputForm {
         model.isChoosing = selection != nil
         model.unitRanges = selection?.units.map(\.range) ?? []
         model.selectedRange = selection?.selectedUnit.range
-        model.candidates = selection?.candidates ?? []
+        model.candidates = selection?.candidates.map(\.text) ?? []
         model.candidateIndex = selection?.candidateIndex
     }
 

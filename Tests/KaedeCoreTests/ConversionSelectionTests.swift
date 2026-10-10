@@ -9,6 +9,10 @@ private let units = [
     ConversionUnit(kind: .bunsetsu(clause: "sake", index: 0), text: "酒", reading: "さけ", range: 14..<15, line: 1),
 ]
 
+private func japanese(_ texts: String...) -> [ConversionCandidate] {
+    texts.map { ConversionCandidate($0, .japanese) }
+}
+
 @Suite struct ConversionSelectionTests {
     @Test func startsAtTheFirstUnitOfTheLine() throws {
         #expect(try #require(ConversionSelection(units: units, line: 1, choices: ConversionChoices())).selectedUnit == units[3])
@@ -32,37 +36,37 @@ private let units = [
 
     @Test func pointsAtTheShownTextAmongTheCandidates() throws {
         var selection = try #require(ConversionSelection(units: units, line: 0, choices: ConversionChoices()))
-        selection.show(candidates: ["強は", "今日は", "きょうは"])
+        selection.show(candidates: japanese("強は", "今日は", "きょうは"))
         #expect(selection.candidateIndex == 1)
     }
 
     @Test func stepsThroughTheCandidatesAroundTheEnds() throws {
         var selection = try #require(ConversionSelection(units: units, line: 0, choices: ConversionChoices()))
-        selection.show(candidates: ["今日は", "強は", "きょうは"])
-        let steps = [1, 1, 1, -1].map { selection.stepCandidate(by: $0) }
+        selection.show(candidates: japanese("今日は", "強は", "きょうは"))
+        let steps = [1, 1, 1, -1].map { selection.stepCandidate(by: $0)?.text }
         #expect(steps == ["強は", "きょうは", "今日は", "きょうは"])
     }
 
     @Test func picksACandidateByItsNumber() throws {
         var selection = try #require(ConversionSelection(units: units, line: 0, choices: ConversionChoices()))
-        selection.show(candidates: ["今日は", "強は"])
-        let picks = [2, 3].map { selection.pickCandidate(number: $0) }
+        selection.show(candidates: japanese("今日は", "強は"))
+        let picks = [2, 3].map { selection.pickCandidate(number: $0)?.text }
         #expect(picks == ["強は", nil])
     }
 
     @Test func choosesAPhraseOfItsClause() throws {
         var selection = try #require(ConversionSelection(units: units, line: 0, choices: ConversionChoices()))
         selection.move(by: 1)
-        let choices = selection.choices(ConversionChoices(), choosing: "天気画")
+        let choices = selection.choices(ConversionChoices(), choosing: ConversionCandidate("天気画", .japanese))
         #expect(choices.clauses["kyouhatenkiga"] == [Bunsetsu(reading: "きょうは", text: "今日は"), Bunsetsu(reading: "てんきが", text: "天気画")])
     }
 
     @Test func turnsEnglishJapaneseAndBack() throws {
         var selection = try #require(ConversionSelection(units: units, line: 0, choices: ConversionChoices()))
         selection.move(by: 2)
-        let japanese = selection.choices(ConversionChoices(), choosing: "ごおgぇ")
+        let japanese = selection.choices(ConversionChoices(), choosing: ConversionCandidate("ごおgぇ", .japanese))
         #expect(japanese.english["google"] == "ごおgぇ")
-        #expect(selection.choices(japanese, choosing: "google").english["google"] == nil)
+        #expect(selection.choices(japanese, choosing: ConversionCandidate("google", .english)).english["google"] == nil)
     }
 
     @Test func givesThePhrasesOfTheSelectedClause() throws {

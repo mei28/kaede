@@ -6,7 +6,7 @@ public struct ConversionSelection: Equatable, Sendable {
     public private(set) var units: [ConversionUnit]
     public private(set) var selected: Int
     /// The selected unit's candidates, empty until shown.
-    public private(set) var candidates: [String] = []
+    public private(set) var candidates: [ConversionCandidate] = []
     /// Which candidate shows, or nil when the unit shows none of them.
     public private(set) var candidateIndex: Int?
     /// What was chosen before, for cancelling.
@@ -34,13 +34,13 @@ public struct ConversionSelection: Equatable, Sendable {
         return true
     }
 
-    public mutating func show(candidates: [String]) {
+    public mutating func show(candidates: [ConversionCandidate]) {
         self.candidates = candidates
-        candidateIndex = candidates.firstIndex(of: selectedUnit.text)
+        candidateIndex = candidates.firstIndex { $0.text == selectedUnit.text }
     }
 
     /// The candidate `delta` places away, going round at the ends; nil before any are shown.
-    public mutating func stepCandidate(by delta: Int) -> String? {
+    public mutating func stepCandidate(by delta: Int) -> ConversionCandidate? {
         guard !candidates.isEmpty else { return nil }
         // From none shown, down starts at the first and up at the last
         let current = candidateIndex ?? (delta > 0 ? -1 : 0)
@@ -50,23 +50,23 @@ public struct ConversionSelection: Equatable, Sendable {
     }
 
     /// The candidate numbered from 1, or nil when there is no such number.
-    public mutating func pickCandidate(number: Int) -> String? {
+    public mutating func pickCandidate(number: Int) -> ConversionCandidate? {
         guard (1...candidates.count).contains(number) else { return nil }
         candidateIndex = number - 1
         return candidates[number - 1]
     }
 
-    /// `choices` with `text` chosen for the selected unit: its phrase in the clause's phrases, or
-    /// Japanese for English (none when the English as typed is chosen back).
-    public func choices(_ choices: ConversionChoices, choosing text: String) -> ConversionChoices {
+    /// `choices` with `candidate` chosen for the selected unit: its phrase in the clause's
+    /// phrases, or Japanese for English (none when the English as typed is chosen back).
+    public func choices(_ choices: ConversionChoices, choosing candidate: ConversionCandidate) -> ConversionChoices {
         var choices = choices
         switch selectedUnit.kind {
         case let .bunsetsu(clause, index):
             var phrases = phrasesOfSelectedClause()
-            phrases[index].text = text
+            phrases[index].text = candidate.text
             choices.clauses[clause] = phrases
         case let .english(typed):
-            choices.english[typed] = text == typed ? nil : text
+            choices.english[typed] = candidate.text == typed ? nil : candidate.text
         }
         return choices
     }

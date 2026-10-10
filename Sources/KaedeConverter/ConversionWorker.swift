@@ -48,17 +48,21 @@ public actor ConversionWorker {
 
     /// What a unit can become: a phrase's candidates for its reading; English as typed, then, when
     /// it reads as romaji, its Japanese candidates (sake → 酒).
-    public func candidates(for unit: ConversionUnit) throws -> [String] {
+    public func candidates(for unit: ConversionUnit) throws -> [ConversionCandidate] {
         switch unit.kind {
         case .bunsetsu:
-            return try candidates(reading: unit.reading)
+            return try japaneseCandidates(reading: unit.reading)
         case let .english(typed):
             guard RomajiParser.isPlainRomaji(typed) else {
-                return [typed]
+                return [ConversionCandidate(typed, .english)]
             }
             let reading = try kanji(for: typed).map(\.reading).joined()
-            return try [typed] + candidates(reading: reading)
+            return try [ConversionCandidate(typed, .english)] + japaneseCandidates(reading: reading)
         }
+    }
+
+    private func japaneseCandidates(reading: String) throws -> [ConversionCandidate] {
+        try candidates(reading: reading).map { ConversionCandidate($0, .japanese) }
     }
 
     /// The phrases with the border after the one at `index` moved by a character, the two changed
