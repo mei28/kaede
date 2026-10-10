@@ -20,7 +20,7 @@ struct TextInserter {
     /// The pause between pieces, so the app keeps up with the typed text.
     private static let pieceGap: Duration = .milliseconds(5)
 
-    /// Selects the Roman source if Kaede switched the form to azooKey, then types the pieces.
+    /// Selects the Roman source if azooKey was selected by hand in the form, then types the pieces.
     func type(_ pieces: [TypingPiece], into pid: pid_t) async throws {
         guard await Self.waitUntil(.milliseconds(500), { Self.focusedApplication() == pid }) else {
             throw Failure.focusNotBack
@@ -52,8 +52,8 @@ struct TextInserter {
 
     private static let modifierFlags: CGEventFlags = [.maskCommand, .maskControl, .maskAlternate, .maskShift]
 
-    /// The process of the app that has the keyboard focus, from the accessibility API; the app
-    /// in front does not change while the non-activating form is open.
+    /// The process of the app that has the keyboard focus, from the accessibility API: the form
+    /// hands the activation back, and the keys must wait until that app has it.
     private static func focusedApplication() -> pid_t? {
         let systemWide = AXUIElementCreateSystemWide()
         AXUIElementSetMessagingTimeout(systemWide, 0.1)

@@ -12,7 +12,8 @@ let package = Package(
         .package(url: "https://github.com/azooKey/AzooKeyKanaKanjiConverter", .upToNextMinor(from: "0.11.2")),
     ],
     targets: [
-        // テスト可能なロジック層（キーの組み合わせ、ローマ字の判定、英単語の辞書、打つ文字の分け方）。AppKit に依存しない。
+        // テスト可能なロジック層（英語とローマ字の区切り、組み立て、変換を選ぶ場面、キーの組み合わせ、打つ文字の分け方）。
+        // AppKit にも azooKey にも依存しない。
         .target(
             name: "KaedeCore"
         ),

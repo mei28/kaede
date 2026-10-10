@@ -1,4 +1,4 @@
-# Kaede — タスクランナー
+# Kaede のタスクランナー
 # レシピ一覧は `just` または `just --list` で確認。
 
 # 署名に使う自己署名証明書（キーチェーンアクセスで作成したもの）
@@ -26,18 +26,18 @@ bundle:
     mkdir -p dist/Kaede.app/Contents/MacOS dist/Kaede.app/Contents/Resources
     cp .build/release/Kaede dist/Kaede.app/Contents/MacOS/Kaede
     cp Packaging/Info.plist dist/Kaede.app/Contents/Info.plist
-    # 英単語のリスト（/usr/share/dict/words に足りない活用形や固有の語を補う。英語の途中の文字を守る辞書に使う）
+    # 英単語の一覧（en10k は頻度順。英語とローマ字の区切りに使う。extra-words はユーザーの語）
     cp Resources/en10k.txt Resources/extra-words.txt dist/Kaede.app/Contents/Resources/
     # 変換辞書（Kaede は Contents/Resources/Dictionary から読む）
     cp -R {{dictionary}} dist/Kaede.app/Contents/Resources/Dictionary
     codesign --force --sign "{{signing_identity}}" --identifier com.mei28.kaede dist/Kaede.app
     @echo "dist/Kaede.app を作成しました（just run で起動）"
 
-# .app を起動する（アクセシビリティと入力監視の許可は .app に与える）
+# .app を起動する（アクセシビリティの許可は .app に与える）
 run: bundle
     open dist/Kaede.app
 
-# 誤って日本語に切り替わった英単語や名前を、英語として守る語の一覧に足す（反映は just bundle の後）
+# 日本語に変換されてしまう英単語や名前を、英単語の一覧に足す（反映は just bundle の後）
 add-word word:
     @grep -qxi "{{word}}" Resources/extra-words.txt && echo "{{word}} はもう入っています" || (echo "{{word}}" >> Resources/extra-words.txt && echo "{{word}} を足しました。just bundle で作り直すと反映されます")
 
