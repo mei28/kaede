@@ -13,17 +13,25 @@ import SwiftUI
 final class InputForm {
     private var keys: FormKeys
     private let handler: FormKeyHandler
-    private let worker: ConversionWorker
-    private var style: PunctuationStyle
+    let worker: ConversionWorker
+    private(set) var style: PunctuationStyle
     /// Converts the text as it is now; a newer change cancels it.
     private var previewTask: Task<Void, Never>?
     /// The last conversion that finished, and what it converted.
-    private var preview: (text: String, style: PunctuationStyle, converted: String)?
+    var preview: Preview?
+    /// What the user chose in place of the first candidates, until the text goes into the app.
+    var choices = ConversionChoices()
+    /// Choosing conversions with Tab, or nil while writing.
+    var selection: ConversionSelection?
+    /// Tab was pressed and the preview is catching up: keys already belong to choosing.
+    var isBeginningToChoose = false
+    /// The last step of choosing; the next waits for it, so keys act in their order.
+    var choosingStep: Task<Void, Never>?
     private let inserter = TextInserter()
     private let poster = EventPoster()
     private let panel: FormPanel
-    private let textView: NSTextView
-    private let model: FormModel
+    let textView: NSTextView
+    let model: FormModel
     /// The app in front when the form opened: the text goes there.
     private var target: NSRunningApplication?
     /// azooKey was selected (by hand, with Hammerspoon's Ebi remapping) when the form opened, and
@@ -97,17 +105,24 @@ final class InputForm {
         handler.formWindow = panel
         // Before the input method sees the key, so it works mid-conversion
         handler.interceptor = { [weak self] event in
-            self?.takeInsertKey(event) ?? false
+            self?.take(event) ?? false
         }
     }
 
-    /// Inserts when the key is the insert key; returns whether it was.
-    private func takeInsertKey(_ event: NSEvent) -> Bool {
-        guard keys.insert.matches(keyCode: event.keyCode, modifiers: Self.heldModifiers()) else {
-            return false
+    /// Takes the insert key, Tab and the keys of choosing; returns whether it took the key.
+    private func take(_ event: NSEvent) -> Bool {
+        if keys.insert.matches(keyCode: event.keyCode, modifiers: Self.heldModifiers()) {
+            insert()
+            return true
         }
-        insert()
-        return true
+        if selection != nil || isBeginningToChoose {
+            return takeChoosingKey(event)
+        }
+        if event.keyCode == Self.tabKeyCode, event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty {
+            beginChoosing()
+            return true
+        }
+        return false
     }
 
     /// Settings changed in the panel take effect at once.
@@ -248,17 +263,8 @@ final class InputForm {
                 return
             }
         }
-        let text = textView.string
-        let converted: String
-        if let preview, preview.text == text, preview.style == style {
-            converted = preview.converted
-        } else {
-            do {
-                converted = try await worker.convert(text, style: style).text
-            } catch {
-                fail("Converting the form's text failed: \(error)")
-                return
-            }
+        guard let converted = await currentConversion()?.text else {
+            return
         }
         let pieces: [TypingPiece]
         do {
@@ -281,6 +287,7 @@ final class InputForm {
             panel.makeFirstResponder(textView)
             return
         }
+        endChoosing()
         textView.string = ""
         textChanged()
         // After the app has taken the text in the Roman source
@@ -290,23 +297,24 @@ final class InputForm {
 
     private func textChanged() {
         model.isEmpty = textView.textStorage?.length == 0
+        if model.isEmpty {
+            // A new draft starts from the first candidates
+            choices = ConversionChoices()
+        }
         convertForPreview()
     }
 
     /// Converts the text after a short pause, dropping a conversion the next change makes stale.
-    private func convertForPreview() {
+    func convertForPreview() {
         previewTask?.cancel()
         model.previewIsCurrent = false
-        let text = textView.string
-        let style = style
+        let request = Preview.Request(text: textView.string, style: style, choices: choices)
         previewTask = Task { [worker] in
             do {
                 // Keys typed in a burst need one conversion, after the last
                 try await Task.sleep(for: Self.previewPause)
-                let converted = try await worker.convert(text, style: style).text
-                preview = (text, style, converted)
-                model.preview = converted
-                model.previewIsCurrent = true
+                let converted = try await worker.convert(request.text, style: request.style, choices: request.choices)
+                show(Preview(request: request, converted: converted))
             } catch is CancellationError {
                 // A newer change converts instead
             } catch {
@@ -315,7 +323,31 @@ final class InputForm {
         }
     }
 
-    private func fail(_ message: String) {
+    /// The conversion of the text as it is now, with the choices: the preview when it is
+    /// current, else converted now. Nil when converting failed, which beeps.
+    func currentConversion() async -> ConvertedText? {
+        let request = Preview.Request(text: textView.string, style: style, choices: choices)
+        if let preview, preview.request == request {
+            return preview.converted
+        }
+        do {
+            let converted = try await worker.convert(request.text, style: request.style, choices: request.choices)
+            show(Preview(request: request, converted: converted))
+            return converted
+        } catch {
+            fail("Converting the form's text failed: \(error)")
+            return nil
+        }
+    }
+
+    private func show(_ preview: Preview) {
+        self.preview = preview
+        model.preview = preview.converted.text
+        model.previewIsCurrent = true
+        followSelection(to: preview.converted.units)
+    }
+
+    func fail(_ message: String) {
         log.error("\(message, privacy: .public)")
         NSSound.beep()
     }
@@ -340,6 +372,7 @@ final class InputForm {
     /// How long before manual azooKey comes back, after the app has taken the text.
     private static let restoreDelay: Duration = .milliseconds(200)
     private static let previewPause: Duration = .milliseconds(30)
+    private static let tabKeyCode: UInt16 = 48
 
     /// Plain text with nothing that changes words behind the user's back: spelling correction
     /// and completion would rewrite romaji as English.
@@ -407,4 +440,16 @@ private final class FormPanel: NSPanel {
 
     /// Escape cancels azooKey's conversion; it must not close the form.
     override func cancelOperation(_ sender: Any?) {}
+}
+
+/// A conversion of the form's text and what it was asked with.
+struct Preview {
+    struct Request: Equatable {
+        var text: String
+        var style: PunctuationStyle
+        var choices: ConversionChoices
+    }
+
+    var request: Request
+    var converted: ConvertedText
 }
