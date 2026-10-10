@@ -9,6 +9,8 @@ private let lexicon = EnglishLexicon(wordList: """
     to
     no
     he
+    we
+    are
     this
     all
     you
@@ -97,5 +99,23 @@ private let lexicon = EnglishLexicon(wordList: """
         #expect(cover.cover("sikasinoatoallyouneedislove") == [.romaji("sikasinoato"), .english(["all", "you", "need", "is", "love"])])
         // en10k holds "sit" too
         #expect(cover.cover("pushsita") == [.english(["push"]), .romaji("sita")])
+    }
+}
+
+@Suite struct EnglishWordsTests {
+    let cover = WordCover(lexicon: lexicon)
+
+    @Test func splitsLettersIntoEnglishWordsOnly() {
+        // "weare" reads as romaji whole, so the cover never splits it
+        #expect(cover.englishWords("weare") == ["we", "are"])
+        #expect(cover.englishWords("thisisthe") == ["this", "is", "the"])
+    }
+
+    @Test func keepsTheCaseOfTheWords() {
+        #expect(cover.englishWords("WeAre") == ["We", "Are"])
+    }
+
+    @Test func findsNothingWhenSomeLettersAreNoWord() {
+        #expect(cover.englishWords("kyouha") == nil)
     }
 }

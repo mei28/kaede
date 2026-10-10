@@ -55,6 +55,34 @@ public struct WordCover: Sendable {
         return pieces(characters, best, endingIn: last)
     }
 
+    /// The most common English words that spell all the letters, as typed, or nil when some
+    /// letters are no word. For letters the user wants as English even though they read as
+    /// romaji (weare → we are).
+    public func englishWords(_ letters: String) -> [String]? {
+        let characters = Array(letters)
+        // The cheapest words to each position, and where the last word starts
+        var best: [(price: Double, start: Int)?] = Array(repeating: nil, count: characters.count + 1)
+        best[0] = (0, 0)
+        for start in characters.indices {
+            guard let reached = best[start] else { continue }
+            for end in start + 1...characters.count {
+                guard let rank = lexicon.rank(of: String(characters[start..<end])) else { continue }
+                let price = reached.price + log(Double(rank) * logWordCount)
+                if best[end].map({ price < $0.price }) ?? true {
+                    best[end] = (price, start)
+                }
+            }
+        }
+        guard best[characters.count] != nil else { return nil }
+        var words: [String] = []
+        var end = characters.count
+        while end > 0, let (_, start) = best[end] {
+            words.insert(String(characters[start..<end]), at: 0)
+            end = start
+        }
+        return words
+    }
+
     /// An unknown word followed by romaji that starts with a particle (grokga → grok | ga), or nil.
     /// The romaji is the longest end that reads as romaji; the word before it must have three
     /// letters or more.
