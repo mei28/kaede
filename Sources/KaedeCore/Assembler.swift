@@ -21,13 +21,15 @@ public enum PunctuationStyle: String, CaseIterable, Sendable {
 /// as typed. English keeps its own spacing; Japanese has none.
 public enum Assembler {
     /// The line, and its phrases and English with their places on the line (line 0).
-    /// - Parameter convert: converts a clause of romaji into its phrases.
-    public static func assemble(_ segments: [Segment], style: PunctuationStyle, convert: (String) throws -> [Bunsetsu]) rethrows -> ConvertedText {
+    /// - Parameters:
+    ///   - japaneseForEnglish: Japanese the user chose for English words, written as Japanese.
+    ///   - convert: converts a clause of romaji into its phrases.
+    public static func assemble(_ segments: [Segment], style: PunctuationStyle, japaneseForEnglish: [String: String], convert: (String) throws -> [Bunsetsu]) rethrows -> ConvertedText {
         var line = ""
         var units: [ConversionUnit] = []
         var previous: Part?
         for segment in segments {
-            let part = try Part(segment, style: style, convert: convert)
+            let part = try Part(segment, style: style, japaneseForEnglish: japaneseForEnglish, convert: convert)
             if let previous, spaced(previous, part) {
                 line.append(" ")
             }
@@ -76,12 +78,14 @@ private struct Part {
     /// Its choosable parts, placed from the part's start.
     var units: [ConversionUnit] = []
 
-    init(_ segment: Segment, style: PunctuationStyle, convert: (String) throws -> [Bunsetsu]) rethrows {
+    init(_ segment: Segment, style: PunctuationStyle, japaneseForEnglish: [String: String], convert: (String) throws -> [Bunsetsu]) rethrows {
         spaceBefore = segment.spaceBefore
         switch segment.content {
-        case let .english(text):
-            (self.text, language, role) = (text, .english, .words)
-            units = [ConversionUnit(kind: .english(text), text: text, reading: text, range: 0..<text.utf16.count, line: 0)]
+        case let .english(typed):
+            // Turned Japanese, it is spaced as Japanese
+            let japanese = japaneseForEnglish[typed]
+            (text, language, role) = (japanese ?? typed, japanese == nil ? .english : .japanese, .words)
+            units = [ConversionUnit(kind: .english(typed), text: text, reading: typed, range: 0..<text.utf16.count, line: 0)]
         case let .romaji(clause):
             let phrases = try convert(clause)
             (text, language, role) = (phrases.map(\.text).joined(), .japanese, .words)

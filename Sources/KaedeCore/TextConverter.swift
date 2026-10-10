@@ -6,8 +6,10 @@ public struct TextConverter: Sendable {
         segmenter = LineSegmenter(lexicon: lexicon)
     }
 
-    /// - Parameter kanji: converts a clause of romaji (with digits) into Japanese phrases.
-    public func convert(_ text: String, style: PunctuationStyle, kanji: (String) throws -> [Bunsetsu]) rethrows -> ConvertedText {
+    /// - Parameters:
+    ///   - choices: conversions the user chose, used in place of `kanji`.
+    ///   - kanji: converts a clause of romaji (with digits) into Japanese phrases.
+    public func convert(_ text: String, style: PunctuationStyle, choices: ConversionChoices = ConversionChoices(), kanji: (String) throws -> [Bunsetsu]) rethrows -> ConvertedText {
         var converted = ConvertedText(text: "", units: [])
         func append(_ line: ConvertedText, number: Int) {
             let offset = converted.text.utf16.count
@@ -17,17 +19,20 @@ public struct TextConverter: Sendable {
         var lineStart = text.startIndex
         var number = 0
         for index in text.indices where text[index].isNewline {
-            append(try convertLine(text[lineStart..<index], style: style, kanji: kanji), number: number)
+            append(try convertLine(text[lineStart..<index], style: style, choices: choices, kanji: kanji), number: number)
             converted.text.append(text[index])
             lineStart = text.index(after: index)
             number += 1
         }
-        append(try convertLine(text[lineStart...], style: style, kanji: kanji), number: number)
+        append(try convertLine(text[lineStart...], style: style, choices: choices, kanji: kanji), number: number)
         return converted
     }
 
-    private func convertLine(_ line: Substring, style: PunctuationStyle, kanji: (String) throws -> [Bunsetsu]) rethrows -> ConvertedText {
-        try Assembler.assemble(segmenter.segments(of: line), style: style) { clause in
+    private func convertLine(_ line: Substring, style: PunctuationStyle, choices: ConversionChoices, kanji: (String) throws -> [Bunsetsu]) rethrows -> ConvertedText {
+        try Assembler.assemble(segmenter.segments(of: line), style: style, japaneseForEnglish: choices.english) { clause in
+            if let chosen = choices.clauses[clause] {
+                return chosen
+            }
             // On its own a particle or verb ending has no sentence to choose its kanji by (の would
             // be 野, した 下)
             if let kana = FunctionWords.kana(of: clause) {

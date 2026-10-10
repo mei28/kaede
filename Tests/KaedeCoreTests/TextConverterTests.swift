@@ -99,3 +99,34 @@ private let kanji: [String: String] = [
         #expect(convert("kyouha, 3").units.map(\.text) == ["今日は"])
     }
 }
+
+@Suite struct ConversionChoicesTests {
+    let converter = TextConverter(lexicon: EnglishLexicon(wordList: "this\nis\nsake\n"))
+
+    private func convert(_ text: String, _ choices: ConversionChoices) -> ConvertedText {
+        converter.convert(text, style: .touten, choices: choices) { clause in
+            Issue.record("asked to convert \(clause)")
+            return []
+        }
+    }
+
+    @Test func usesThePhrasesChosenForAClause() {
+        var choices = ConversionChoices()
+        choices.clauses["kyouha"] = [Bunsetsu(reading: "きょうは", text: "強は")]
+        #expect(convert("kyouha", choices).text == "強は")
+    }
+
+    @Test func usesThePhrasesChosenForAParticle() {
+        var choices = ConversionChoices()
+        choices.clauses["no"] = [Bunsetsu(reading: "の", text: "野")]
+        #expect(convert("no", choices).text == "野")
+    }
+
+    @Test func writesEnglishTheUserTurnedJapaneseAsJapanese() {
+        var choices = ConversionChoices()
+        choices.english["sake"] = "酒"
+        let converted = convert("this is sake", choices)
+        #expect(converted.text == "this is 酒")
+        #expect(converted.units.last == ConversionUnit(kind: .english("sake"), text: "酒", reading: "sake", range: 8..<9, line: 0))
+    }
+}

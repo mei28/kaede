@@ -13,7 +13,7 @@ private let kanji: [String: String] = [
 ]
 
 private func assemble(_ segments: [Segment], style: PunctuationStyle = .touten) -> String {
-    Assembler.assemble(segments, style: style) { clause in
+    Assembler.assemble(segments, style: style, japaneseForEnglish: [:]) { clause in
         guard let converted = kanji[clause] else {
             Issue.record("no conversion for \(clause)")
             return []
