@@ -64,6 +64,7 @@ public struct ConversionSelection: Equatable, Sendable {
         case let .bunsetsu(clause, index):
             var phrases = phrasesOfSelectedClause()
             phrases[index].text = candidate.text
+            phrases[index].language = candidate.language
             choices.clauses[clause] = phrases
         case let .english(typed):
             choices.english[typed] = candidate.text == typed ? nil : candidate.text
@@ -75,6 +76,15 @@ public struct ConversionSelection: Equatable, Sendable {
     public var clausePhrases: [Bunsetsu]? {
         guard case .bunsetsu = selectedUnit.kind else { return nil }
         return phrasesOfSelectedClause()
+    }
+
+    /// Where the selected phrase's reading sits in its clause's reading, in characters; nil for
+    /// English.
+    public var selectedPhraseReadingRange: Range<Int>? {
+        guard case let .bunsetsu(_, index) = selectedUnit.kind else { return nil }
+        let phrases = phrasesOfSelectedClause()
+        let start = phrases[..<index].map(\.reading.count).reduce(0, +)
+        return start..<(start + phrases[index].reading.count)
     }
 
     /// Takes the units of the text converted again and selects the same unit in them; false when
@@ -111,6 +121,6 @@ public struct ConversionSelection: Equatable, Sendable {
         while last + 1 < units.count, sameClause(units[last + 1]) {
             last += 1
         }
-        return units[first...last].map { Bunsetsu(reading: $0.reading, text: $0.text) }
+        return units[first...last].map { Bunsetsu(reading: $0.reading, text: $0.text, language: $0.language) }
     }
 }

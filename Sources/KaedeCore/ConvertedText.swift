@@ -24,16 +24,22 @@ public struct ConversionUnit: Equatable, Sendable {
     public var range: Range<Int>
     /// Which line of the text it is on, from 0.
     public var line: Int
+    /// The language it counts in now: a phrase turned English, or English turned Japanese.
+    public var language: Language
 
-    public init(kind: Kind, text: String, reading: String, range: Range<Int>, line: Int) {
+    /// - Parameter language: by default, Japanese for a phrase and English for English.
+    public init(kind: Kind, text: String, reading: String, range: Range<Int>, line: Int, language: Language? = nil) {
         self.kind = kind
         self.text = text
         self.reading = reading
         self.range = range
         self.line = line
+        self.language = language ?? {
+            if case .english = kind { .english } else { .japanese }
+        }()
     }
 
     func shifted(by offset: Int, line: Int) -> ConversionUnit {
-        ConversionUnit(kind: kind, text: text, reading: reading, range: (range.lowerBound + offset)..<(range.upperBound + offset), line: line)
+        ConversionUnit(kind: kind, text: text, reading: reading, range: (range.lowerBound + offset)..<(range.upperBound + offset), line: line, language: language)
     }
 }

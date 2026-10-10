@@ -127,6 +127,6 @@ private let kanji: [String: String] = [
         choices.english["sake"] = "酒"
         let converted = convert("this is sake", choices)
         #expect(converted.text == "this is 酒")
-        #expect(converted.units.last == ConversionUnit(kind: .english("sake"), text: "酒", reading: "sake", range: 8..<9, line: 0))
+        #expect(converted.units.last == ConversionUnit(kind: .english("sake"), text: "酒", reading: "sake", range: 8..<9, line: 0, language: .japanese))
     }
 }

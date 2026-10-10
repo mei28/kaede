@@ -76,3 +76,19 @@ private func segment(_ content: Segment.Content, space: Bool = false) -> Segment
         #expect(PunctuationStyle(rawValue: "，．") == .fullWidthCommaPeriod)
     }
 }
+
+@Suite struct EnglishPhraseTests {
+    private let phrases = [
+        Bunsetsu(reading: "きょうは", text: "今日は"),
+        Bunsetsu(reading: "うぇあれ", text: "we are", language: .english),
+    ]
+
+    @Test func spacesAPhraseTurnedEnglishAsEnglish() {
+        let line = Assembler.assemble([Segment(content: .romaji("kyouhaweare"), spaceBefore: false)], style: .touten, japaneseForEnglish: [:]) { _ in phrases }
+        #expect(line.text == "今日は we are")
+        #expect(line.units == [
+            ConversionUnit(kind: .bunsetsu(clause: "kyouhaweare", index: 0), text: "今日は", reading: "きょうは", range: 0..<3, line: 0),
+            ConversionUnit(kind: .bunsetsu(clause: "kyouhaweare", index: 1), text: "we are", reading: "うぇあれ", range: 4..<10, line: 0, language: .english),
+        ])
+    }
+}

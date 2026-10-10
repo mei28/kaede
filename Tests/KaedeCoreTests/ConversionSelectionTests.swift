@@ -93,3 +93,27 @@ private func japanese(_ texts: String...) -> [ConversionCandidate] {
         #expect(try #require(ConversionSelection(units: units, line: 0, choices: start)).choicesAtStart == start)
     }
 }
+
+@Suite struct EnglishPhraseSelectionTests {
+    private let units = [
+        ConversionUnit(kind: .bunsetsu(clause: "kyouhaweare", index: 0), text: "今日は", reading: "きょうは", range: 0..<3, line: 0),
+        ConversionUnit(kind: .bunsetsu(clause: "kyouhaweare", index: 1), text: "上荒れ", reading: "うぇあれ", range: 3..<6, line: 0),
+    ]
+
+    @Test func turnsAPhraseEnglish() throws {
+        var selection = try #require(ConversionSelection(units: units, line: 0, choices: ConversionChoices()))
+        selection.move(by: 1)
+        let choices = selection.choices(ConversionChoices(), choosing: ConversionCandidate("we are", .english))
+        #expect(choices.clauses["kyouhaweare"] == [
+            Bunsetsu(reading: "きょうは", text: "今日は"),
+            Bunsetsu(reading: "うぇあれ", text: "we are", language: .english),
+        ])
+    }
+
+    @Test func placesTheSelectedPhraseInItsClausesReading() throws {
+        var selection = try #require(ConversionSelection(units: units, line: 0, choices: ConversionChoices()))
+        #expect(selection.selectedPhraseReadingRange == 0..<4)
+        selection.move(by: 1)
+        #expect(selection.selectedPhraseReadingRange == 4..<8)
+    }
+}
