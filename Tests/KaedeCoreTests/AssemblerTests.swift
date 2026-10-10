@@ -19,7 +19,7 @@ private func assemble(_ segments: [Segment], style: PunctuationStyle = .touten) 
             return []
         }
         return [Bunsetsu(reading: clause, text: converted)]
-    }
+    }.text
 }
 
 private func segment(_ content: Segment.Content, space: Bool = false) -> Segment {

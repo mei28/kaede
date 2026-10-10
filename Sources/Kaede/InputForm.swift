@@ -254,7 +254,7 @@ final class InputForm {
             converted = preview.converted
         } else {
             do {
-                converted = try await worker.convert(text, style: style)
+                converted = try await worker.convert(text, style: style).text
             } catch {
                 fail("Converting the form's text failed: \(error)")
                 return
@@ -303,7 +303,7 @@ final class InputForm {
             do {
                 // Keys typed in a burst need one conversion, after the last
                 try await Task.sleep(for: Self.previewPause)
-                let converted = try await worker.convert(text, style: style)
+                let converted = try await worker.convert(text, style: style).text
                 preview = (text, style, converted)
                 model.preview = converted
                 model.previewIsCurrent = true

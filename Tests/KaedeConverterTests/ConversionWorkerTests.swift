@@ -36,17 +36,17 @@ private let worker = ConversionWorker(
         ("kyouhaclaudetohanashita", "今日は claude と話した"),
     ])
     func convertsALine(typed: String, expected: String) async throws {
-        let converted = try await worker.convert(typed, style: .touten)
+        let converted = try await worker.convert(typed, style: .touten).text
         #expect(converted == expected)
     }
 
     @Test func convertsSeveralLines() async throws {
-        let converted = try await worker.convert("watashinonamaeha\nthisisapen.", style: .touten)
+        let converted = try await worker.convert("watashinonamaeha\nthisisapen.", style: .touten).text
         #expect(converted == "私の名前は\nthis is a pen.")
     }
 
     @Test func writesJapanesePunctuationInTheStyleAsked() async throws {
-        let converted = try await worker.convert("watashinonamaeha,kinounoare.", style: .fullWidthCommaPeriod)
+        let converted = try await worker.convert("watashinonamaeha,kinounoare.", style: .fullWidthCommaPeriod).text
         #expect(converted == "私の名前は，昨日のあれ．")
     }
 

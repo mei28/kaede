@@ -28,7 +28,7 @@ private let kanji: [String: String] = [
                 return []
             }
             return [Bunsetsu(reading: clause, text: converted)]
-        }
+        }.text
     }
 
     @Test func convertsEachLineAndKeepsTheLineBreaks() {
@@ -54,5 +54,48 @@ private let kanji: [String: String] = [
 
     @Test func convertsNothingToNothing() {
         #expect(convert("") == "")
+    }
+}
+
+@Suite struct ConvertedUnitTests {
+    let converter = TextConverter(lexicon: EnglishLexicon(wordList: "google\n"))
+
+    private func convert(_ text: String) -> ConvertedText {
+        converter.convert(text, style: .touten) { clause in
+            switch clause {
+            case "kyouhatenkigaii":
+                [Bunsetsu(reading: "きょうは", text: "今日は"), Bunsetsu(reading: "てんきが", text: "天気が"), Bunsetsu(reading: "いい", text: "いい")]
+            case "kyouha":
+                [Bunsetsu(reading: "きょうは", text: "今日は")]
+            default:
+                []
+            }
+        }
+    }
+
+    @Test func marksEachPhraseOfAClause() {
+        #expect(convert("kyouhatenkigaii").units == [
+            ConversionUnit(kind: .bunsetsu(clause: "kyouhatenkigaii", index: 0), text: "今日は", reading: "きょうは", range: 0..<3, line: 0),
+            ConversionUnit(kind: .bunsetsu(clause: "kyouhatenkigaii", index: 1), text: "天気が", reading: "てんきが", range: 3..<6, line: 0),
+            ConversionUnit(kind: .bunsetsu(clause: "kyouhatenkigaii", index: 2), text: "いい", reading: "いい", range: 6..<8, line: 0),
+        ])
+    }
+
+    @Test func marksEnglishAfterTheSpaceBeforeIt() {
+        #expect(convert("kyouha google").units == [
+            ConversionUnit(kind: .bunsetsu(clause: "kyouha", index: 0), text: "今日は", reading: "きょうは", range: 0..<3, line: 0),
+            ConversionUnit(kind: .english("google"), text: "google", reading: "google", range: 4..<10, line: 0),
+        ])
+    }
+
+    @Test func countsRangesAcrossLinesInUTF16() {
+        let converted = convert("google\nkyouha")
+        #expect(converted.text == "google\n今日は")
+        #expect(converted.units.map(\.range) == [0..<6, 7..<10])
+        #expect(converted.units.map(\.line) == [0, 1])
+    }
+
+    @Test func leavesPunctuationAndDigitsOut() {
+        #expect(convert("kyouha, 3").units.map(\.text) == ["今日は"])
     }
 }
