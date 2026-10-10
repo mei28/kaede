@@ -67,6 +67,20 @@ public final class AzooKeyConverter {
         return texts
     }
 
+    /// The letters of a clause that spell part of its reading (in characters), or nil when the
+    /// part starts or ends inside a spelling (ん of "tenki" waits for the k after it).
+    public func romaji(of clause: String, reading: Range<Int>) -> String? {
+        // Letter positions to reading positions, where the spellings line up
+        let lineUp = Self.composingText(for: clause).inputIndexToSurfaceIndexMap()
+        guard let start = lineUp.filter({ $0.value == reading.lowerBound }).keys.min(),
+              let end = lineUp.filter({ $0.value == reading.upperBound }).keys.max()
+        else { return nil }
+        // The composing text has the clause's letters one for one ("-" as ー), and perhaps an "n"
+        // after them that settles a final ん
+        let letters = Array(clause)
+        return String(letters[start..<min(end, letters.count)])
+    }
+
     /// The default roman2kana table has no "-" and leaves a final "n" unconverted until an IME
     /// commits it. Do both here, as committing would.
     private static func composingText(for romaji: String) -> ComposingText {

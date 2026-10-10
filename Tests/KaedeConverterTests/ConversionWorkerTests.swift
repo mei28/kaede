@@ -67,19 +67,34 @@ private let worker = ConversionWorker(
     }
 
     @Test func listsThePhrasesCandidates() async throws {
-        let candidates = try await worker.candidates(for: unit(.bunsetsu(clause: "kyouha", index: 0), reading: "きょうは"))
+        let candidates = try await worker.candidates(for: unit(.bunsetsu(clause: "kyouha", index: 0), reading: "きょうは"), readingInClause: 0..<4)
         #expect(candidates.contains(ConversionCandidate("今日は", .japanese)))
         #expect(candidates.contains(ConversionCandidate("強は", .japanese)))
     }
 
+    @Test func endsAPhrasesCandidatesWithItsLettersAsEnglish() async throws {
+        let candidates = try await worker.candidates(
+            for: unit(.bunsetsu(clause: "kyouhaweare", index: 1), reading: "うぇあれ"),
+            readingInClause: 4..<8
+        )
+        // ↑ from the first candidate reaches the words first
+        #expect(candidates.suffix(2) == [ConversionCandidate("weare", .english), ConversionCandidate("we are", .english)])
+        #expect(candidates.first?.language == .japanese)
+    }
+
+    @Test func offersALoneWordAsEnglishOnce() async throws {
+        let candidates = try await worker.candidates(for: unit(.bunsetsu(clause: "sake", index: 0), reading: "さけ"), readingInClause: 0..<2)
+        #expect(candidates.filter { $0.language == .english } == [ConversionCandidate("sake", .english)])
+    }
+
     @Test func offersEnglishThatReadsAsRomajiInJapaneseToo() async throws {
-        let candidates = try await worker.candidates(for: unit(.english("sake"), reading: "sake"))
+        let candidates = try await worker.candidates(for: unit(.english("sake"), reading: "sake"), readingInClause: nil)
         #expect(candidates.first == ConversionCandidate("sake", .english))
         #expect(candidates.contains(ConversionCandidate("酒", .japanese)))
     }
 
     @Test func offersOtherEnglishOnlyAsTyped() async throws {
-        #expect(try await worker.candidates(for: unit(.english("google"), reading: "google")) == [ConversionCandidate("google", .english)])
+        #expect(try await worker.candidates(for: unit(.english("google"), reading: "google"), readingInClause: nil) == [ConversionCandidate("google", .english)])
     }
 
     @Test func convertsBothPhrasesAgainAfterMovingTheirBorder() async throws {

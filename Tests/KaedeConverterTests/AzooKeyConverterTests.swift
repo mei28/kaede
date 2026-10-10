@@ -50,6 +50,17 @@ let checkedOutDictionary = URL(filePath: #filePath)
         #expect(Set(candidates).count == candidates.count)
     }
 
+    @Test func findsTheLettersAPhraseCameFrom() {
+        #expect(converter.romaji(of: "kyouhaweare", reading: 4..<8) == "weare")
+        #expect(converter.romaji(of: "kyouhaweare", reading: 0..<4) == "kyouha")
+        #expect(converter.romaji(of: "ra-men", reading: 0..<4) == "ra-men")
+    }
+
+    @Test func findsNoLettersForAReadingThatSplitsASpelling() {
+        // ん of "tenki" is only settled by the k after it
+        #expect(converter.romaji(of: "tenki", reading: 0..<2) == nil)
+    }
+
     @Test func keepsDigitsHalfWidth() throws {
         let converted = try converter.convert(romaji: "10ji").map(\.text).joined()
         #expect(converted.hasPrefix("10"))

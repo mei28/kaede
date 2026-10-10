@@ -9,6 +9,7 @@ public actor ConversionWorker {
     private let dictionaryDirectory: URL
     private let memoryDirectory: URL
     private let converter: TextConverter
+    private let wordCover: WordCover
     /// Made on first use: it loads the whole dictionary, about a second.
     private lazy var azooKey = AzooKeyConverter(dictionaryDirectory: dictionaryDirectory, memoryDirectory: memoryDirectory)
     private var clauses: [String: [Bunsetsu]] = [:]
@@ -18,6 +19,7 @@ public actor ConversionWorker {
         self.dictionaryDirectory = dictionaryDirectory
         self.memoryDirectory = memoryDirectory
         converter = TextConverter(lexicon: lexicon)
+        wordCover = WordCover(lexicon: lexicon)
     }
 
     /// Loads the dictionary now, so the first preview does not wait for it.
@@ -46,12 +48,19 @@ public actor ConversionWorker {
         return converted
     }
 
-    /// What a unit can become: a phrase's candidates for its reading; English as typed, then, when
-    /// it reads as romaji, its Japanese candidates (sake → 酒).
-    public func candidates(for unit: ConversionUnit) throws -> [ConversionCandidate] {
+    /// What a unit can become: a phrase's candidates for its reading, then the letters it came
+    /// from as English (weare, we are); English as typed, then, when it reads as romaji, its
+    /// Japanese candidates (sake → 酒).
+    /// - Parameter readingInClause: where a phrase's reading sits in its clause's reading.
+    public func candidates(for unit: ConversionUnit, readingInClause: Range<Int>?) throws -> [ConversionCandidate] {
         switch unit.kind {
-        case .bunsetsu:
-            return try japaneseCandidates(reading: unit.reading)
+        case let .bunsetsu(clause, _):
+            var candidates = try japaneseCandidates(reading: unit.reading)
+            if let readingInClause, let letters = azooKey.romaji(of: clause, reading: readingInClause) {
+                // Last, so that ↑ from the first candidate reaches them, as in azooKey
+                candidates += englishForms(of: letters)
+            }
+            return candidates
         case let .english(typed):
             guard RomajiParser.isPlainRomaji(typed) else {
                 return [ConversionCandidate(typed, .english)]
@@ -59,6 +68,16 @@ public actor ConversionWorker {
             let reading = try kanji(for: typed).map(\.reading).joined()
             return try [ConversionCandidate(typed, .english)] + japaneseCandidates(reading: reading)
         }
+    }
+
+    /// The letters as typed, then split into English words when they make more than one: the
+    /// words come last, where ↑ from the first candidate lands.
+    private func englishForms(of letters: String) -> [ConversionCandidate] {
+        var forms = [letters]
+        if let words = wordCover.englishWords(letters), words.count > 1 {
+            forms.append(words.joined(separator: " "))
+        }
+        return forms.map { ConversionCandidate($0, .english) }
     }
 
     private func japaneseCandidates(reading: String) throws -> [ConversionCandidate] {
