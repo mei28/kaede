@@ -47,7 +47,7 @@ final class SettingsModel: ObservableObject {
         hotKey.suspend()
         recorder = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             let keyCode = event.keyCode
-            let modifiers = Self.modifiers(of: event.modifierFlags)
+            let modifiers = KeyCombo.Modifiers(event.modifierFlags)
             MainActor.assumeIsolated { self?.recorded(keyCode: keyCode, modifiers: modifiers) }
             return nil
         }
@@ -111,15 +111,6 @@ final class SettingsModel: ObservableObject {
         case .sameKeys: "開くキーと入れるキーが同じです。"
         case .plainEnterInserts: "↩ だけでは入れるキーにできません（窓の中の改行に使うため）。"
         }
-    }
-
-    private static func modifiers(of flags: NSEvent.ModifierFlags) -> KeyCombo.Modifiers {
-        var modifiers: KeyCombo.Modifiers = []
-        if flags.contains(.command) { modifiers.insert(.command) }
-        if flags.contains(.control) { modifiers.insert(.control) }
-        if flags.contains(.option) { modifiers.insert(.option) }
-        if flags.contains(.shift) { modifiers.insert(.shift) }
-        return modifiers
     }
 
     // MARK: Font size
