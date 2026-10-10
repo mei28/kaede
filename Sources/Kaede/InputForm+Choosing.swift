@@ -28,28 +28,22 @@ extension InputForm {
 
     /// The keys of choosing; any other key ends it, keeping the choices, and goes to the text.
     func takeChoosingKey(_ event: NSEvent) -> Bool {
-        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        guard modifiers.subtracting(.shift).isEmpty else {
+        let action = ChoosingKey.action(
+            keyCode: event.keyCode,
+            modifiers: KeyCombo.Modifiers(event.modifierFlags),
+            characters: event.charactersIgnoringModifiers ?? ""
+        )
+        guard let action else {
             endChoosing()
             return false
         }
-        let shift = modifiers.contains(.shift)
-        switch event.keyCode {
-        case 123: step { shift ? await self.resize(by: -1) : await self.move(by: -1) }
-        case 124: step { shift ? await self.resize(by: 1) : await self.move(by: 1) }
-        case 125: step { await self.stepCandidate(by: 1) }
-        case 126: step { await self.stepCandidate(by: -1) }
-        case 49: step { await self.stepCandidate(by: shift ? -1 : 1) }
-        // Return, Enter, Tab
-        case 36, 76, 48: step { self.endChoosing() }
-        // Escape, Backspace: a key that would delete text cancels instead
-        case 53, 51: step { self.cancelChoosing() }
-        default:
-            guard let number = event.charactersIgnoringModifiers.flatMap(Int.init), (1...9).contains(number), !shift else {
-                endChoosing()
-                return false
-            }
-            step { await self.pickCandidate(number: number) }
+        switch action {
+        case let .move(delta): step { await self.move(by: delta) }
+        case let .resize(delta): step { await self.resize(by: delta) }
+        case let .step(delta): step { await self.stepCandidate(by: delta) }
+        case let .pick(number): step { await self.pickCandidate(number: number) }
+        case .keep: step { self.endChoosing() }
+        case .cancel: step { self.cancelChoosing() }
         }
         return true
     }

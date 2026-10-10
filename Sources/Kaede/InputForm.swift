@@ -118,7 +118,7 @@ final class InputForm {
         if selection != nil || isBeginningToChoose {
             return takeChoosingKey(event)
         }
-        if event.keyCode == Self.tabKeyCode, event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty {
+        if event.keyCode == Self.tabKeyCode, KeyCombo.Modifiers(event.modifierFlags).isEmpty {
             beginChoosing()
             return true
         }
