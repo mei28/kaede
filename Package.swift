@@ -30,6 +30,11 @@ let package = Package(
                 .product(name: "KanaKanjiConverterModule", package: "AzooKeyKanaKanjiConverter"),
             ]
         ),
+        // 実際に打った行の表で、英語と日本語と配列の見分けを数える開発用のコマンド（just eval）。
+        .executableTarget(
+            name: "KaedeEval",
+            dependencies: ["KaedeCore", "KaedeConverter"]
+        ),
         // KaedeCore のユニットテスト（swift test で実行）。
         .testTarget(
             name: "KaedeCoreTests",

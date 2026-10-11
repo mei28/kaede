@@ -37,6 +37,14 @@ bundle:
 run: bundle
     open dist/Kaede.app
 
+# 実際に打った行の表（Evaluation/lines.tsv）で、英語と日本語と配列の見分けを数える（layout: ebi、qwerty など）
+eval layout="ebi":
+    swift run -c release KaedeEval --layout {{layout}}
+
+# 1 行の区切りと変換の結果を出す（表に足す行の下書きに）
+eval-show typed layout="ebi":
+    swift run -c release KaedeEval --layout {{layout}} --show "{{typed}}"
+
 # 日本語に変換されてしまう英単語や名前を、英単語の一覧に足す（反映は just bundle の後）
 add-word word:
     @grep -qxi "{{word}}" Resources/extra-words.txt && echo "{{word}} はもう入っています" || (echo "{{word}}" >> Resources/extra-words.txt && echo "{{word}} を足しました。just bundle で作り直すと反映されます")

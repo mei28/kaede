@@ -1,0 +1,45 @@
+# 打ったもの<TAB>期待する区切り（SegmentNotation）<TAB>意図した日本語（採点しない）。L: は配列（Ebi）で読んだもの。
+# 実際に打った行
+watashinoiflsgjdhfkf;ahskkkahakk.fmd QWERTY ;afidjgjs Ebi-sand layoutgamazattarieigotokf;skknsna,azajjd,shfjfkkjs;dkkhakksairerukotodesu	ja(watashino + L:risoutekinihakonnnakannjide) en(QWERTY) ja(L:hairetuto) en(Ebi-sand) en(layout) ja(gamazattarieigoto + L:nihonngogamazattemokitinntohennkann + sairerukotodesu)	私の理想的には、こんな感じで QWERTY 配列と Ebi-sand layout が混ざったり、英語と日本語が混ざってもきちんと変換されることです
+api;a,amajdfhosglfjdfkafmdlgnamsgoajjdja,dlfjdfigksmdlosghar msg.fhhsgusjs,did/affksmdlosgha	en(api) ja(L:hamadateikyousiteinaidesugadouyattetamesiteirunodesyouka) 。 ja(L:doujikkouwotomerebaiinodesyouka)	api はまだ提供していないですが、どうやって試しているのでしょうか。どう実行を止めればいいのでしょうか
+lgg.fjgjghajjd,fighska;akzdmdlosgha;dkkka;dkkhakk;aajshaiakasldigosgkflg/a.gg/gkkkmajss,sjjdf,algrhshsmd;aoa;aifdfnsjskf;skknsqwertyjsebikamsna;ghgzagkf,azajjd,skasigosgkflfjamfldg	ja(L:suujitutukattemirukonahanzedesyoukahennnahennkannhaatokaranaoseruyounisubajuubunnndatoomotteimasu) 。 ja(L:kokodehayaharieigotonihonngo) en(qwerty) ja(L:to) en(ebi) ja(L:nadogahukuzaunimazattemonaoruyounisitadiseu)	数日使ってみるというのはなぜでしょうか。変な変換は後から直せるようにすれば十分だと思っています。ここではやはり英語と日本語、qwerty と ebi などが複雑に混ざっても直るようにしたいです
+# QWERTY だけで打った行（今の変換の表と同じ）
+kyouhagoogledekensaku	ja(kyouha) en(google) ja(dekensaku)	今日は google で検索
+pythonnobug	en(python) ja(no) en(bug)	python の bug
+python no bug	en(python) ja(no) en(bug)	python の bug
+sikasinoatoallyouneedislove	ja(sikasinoato) en(all you need is love)	しかしの後 all you need is love
+thisisapen.	en(this is a pen) .	this is a pen.
+watashinonamaeha	ja(watashinonamaeha)	私の名前は
+kinouno are	ja(kinounoare)	昨日のあれ
+I want to go to the park	en(I) en(want) en(to) en(go) en(to) en(the) en(park)	I want to go to the park
+how to use	en(how) en(to) en(use)	how to use
+kubernetes	en(kubernetes)	kubernetes
+grokga	en(grok) ja(ga)	grok が
+ra-men	ja(ra-men)	ラーメン
+githubnipushshita	en(github) ja(ni) en(push) ja(shita)	github に push した
+kyouhaclaudetohanashita	ja(kyouha) en(claude) ja(tohanashita)	今日は claude と話した
+I checked the build log and the tests pass	en(I) en(checked) en(the) en(build) en(log) en(and) en(the) en(tests) en(pass)	I checked the build log and the tests pass
+watashiha good desu	ja(watashiha) en(good) ja(desu)	私は good です
+kaisha	ja(kaisha)	会社
+mada	ja(mada)	まだ
+has	en(has)	has
+postgres	en(postgres)	postgres
+json	en(json)	json
+kaggle	en(kaggle)	kaggle
+src/kaede	en(src/kaede)	src/kaede
+# Ebi で打った語
+jajsd/a	ja(L:tatoeba)	例えば
+;sk	ja(L:hon)	本
+,amd	ja(L:made)	まで
+haia	ja(L:kara)	から
+ia-,dk	ja(L:ra-men)	ラーメン
+mdlghaB	ja(L:desuka) ？	ですか？
+hsidelsid	ja(L:kore) 、 ja(L:sore)	これ、それ
+andjamdja	ja(L:agetadeta)	あげただけ
+usiwm	en/L(world)	world
+hsid and lsid	ja(L:koreagesore)	これあげそれ
+# QWERTY の英語と Ebi の日本語
+spamdake	en(spam) ja(dake)	spam だけ
+pythonksbug	en(python) ja(L:no) en(bug)	python の bug
+githubkfpushlfja	en(github) ja(L:ni) en(push) ja(L:sita)	github に push した
+waysks;dkhakmdlg	en(ways) ja(L:nohenkandesu)	ways の変換です
