@@ -42,14 +42,23 @@ public struct LineSegmenter: Sendable {
 
     private func units(of token: TypedToken) -> [Unit] {
         let kinds: [Unit.Kind] = switch token.token {
+        case let .keys(run): KeyRun.qwertyTokens(run).flatMap(kinds(of:))
+        default: kinds(of: token.token)
+        }
+        return kinds.enumerated().map { index, kind in
+            Unit(kind: kind, spaceBefore: index == 0 && token.spaceBefore)
+        }
+    }
+
+    private func kinds(of token: Token) -> [Unit.Kind] {
+        switch token {
+        case .keys:
+            preconditionFailure("runs of keys are read before their tokens are classified")
         case let .letters(letters): kinds(of: letters)
         case let .digits(digits): [.digits(digits)]
         case let .punctuation(character): [.punctuation(character)]
         case let .mark(mark): [.mark(mark)]
         case let .verbatim(text, language): [.verbatim(text, language)]
-        }
-        return kinds.enumerated().map { index, kind in
-            Unit(kind: kind, spaceBefore: index == 0 && token.spaceBefore)
         }
     }
 

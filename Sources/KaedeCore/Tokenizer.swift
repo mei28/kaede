@@ -5,6 +5,9 @@ public enum Language: Sendable {
 
 /// A piece of a typed line, as the converter reads it.
 public enum Token: Equatable, Sendable {
+    /// Letters, `, . ; /` and "-" after a letter, as typed: a layout puts letters on , . ; / and
+    /// symbols on letters, so only reading the run decides which are which.
+    case keys(String)
     /// ASCII letters, with "-" after a letter (ra-men, e-mail).
     case letters(String)
     /// Digits, with "," or "." between two digits (1,000, 3.14).
@@ -62,7 +65,7 @@ public enum Tokenizer {
         return (leading + tokens(ofCore: core) + trailing).map { TypedToken(token: $0, spaceBefore: false) }
     }
 
-    /// Words, numbers and the punctuation between them; anything else keeps the whole as typed.
+    /// Runs of keys, numbers and the marks between them; anything else keeps the whole as typed.
     private static func tokens(ofCore core: Substring) -> [Token] {
         guard !core.isEmpty else { return [] }
         let verbatim = [Token.verbatim(String(core), .english)]
@@ -71,12 +74,12 @@ public enum Tokenizer {
         var index = 0
         while index < characters.count {
             let character = characters[index]
-            if character.isLetter {
+            if isKey(character) {
                 var end = index + 1
-                while end < characters.count, characters[end].isLetter || characters[end] == "-" {
+                while end < characters.count, isKey(characters[end]) || (characters[end] == "-" && characters[end - 1].isLetter) {
                     end += 1
                 }
-                tokens.append(.letters(String(characters[index..<end])))
+                tokens.append(.keys(String(characters[index..<end])))
                 index = end
             } else if character.isNumber {
                 var end = index + 1
@@ -87,7 +90,7 @@ public enum Tokenizer {
                 }
                 tokens.append(.digits(String(characters[index..<end])))
                 index = end
-            } else if punctuation.contains(character) {
+            } else if "?!".contains(character) {
                 tokens.append(.punctuation(character))
                 index += 1
             } else {
@@ -95,20 +98,12 @@ public enum Tokenizer {
                 return verbatim
             }
         }
-        return periodsSitBetweenRomaji(tokens) ? tokens : verbatim
+        return tokens
     }
 
-    /// A period inside a word ends a sentence only between romaji (desu.kyouha); between other
-    /// letters it belongs to a name (main.swift, node.js).
-    private static func periodsSitBetweenRomaji(_ tokens: [Token]) -> Bool {
-        tokens.indices.allSatisfy { index in
-            guard tokens[index] == .punctuation(".") else { return true }
-            guard index > 0, index + 1 < tokens.count,
-                  case let .letters(before) = tokens[index - 1],
-                  case let .letters(after) = tokens[index + 1]
-            else { return false }
-            return RomajiParser.isPlainRomaji(before) && RomajiParser.isPlainRomaji(after)
-        }
+    /// The characters a layout may read differently: letters and the four keys , . ; /.
+    private static func isKey(_ character: Character) -> Bool {
+        character.isLetter || ",.;/".contains(character)
     }
 
     private static let openingMarks: Set<Character> = ["(", "[", "{", "\"", "'"]
