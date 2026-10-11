@@ -1,4 +1,5 @@
 import AppKit
+import Carbon
 import KaedeConverter
 import KaedeCore
 import SwiftUI
@@ -103,6 +104,10 @@ final class InputForm {
         // notification leaves out until it is committed
         NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: textView.textStorage, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.textChanged() }
+        }
+        let sourceChanged = Notification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String)
+        DistributedNotificationCenter.default().addObserver(forName: sourceChanged, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.inputSourceChanged() }
         }
         handler.formWindow = panel
         // Before the input method sees the key, so it works mid-conversion
@@ -227,6 +232,16 @@ final class InputForm {
         }
         fail("Kaede could not become the active app, so the form cannot use the input method.")
         putAway()
+    }
+
+    /// The form keeps the Roman source: Kaede reads the keys as typed, azooKey would compose
+    /// them, and right cmd also turns Hammerspoon's Ebi remapping on, which garbles the English
+    /// typed in QWERTY. Left cmd turns both back, as when the form opens.
+    private func inputSourceChanged() {
+        guard panel.isVisible, !inserting, InputSourceGuard.current() != .roman else { return }
+        log.info("Another input source was selected in the form; back to the Roman one.")
+        poster.tapCommand(right: false)
+        Task { await expectRoman() }
     }
 
     /// The form's keys go through Hammerspoon's left cmd; without Hammerspoon nothing switches.
