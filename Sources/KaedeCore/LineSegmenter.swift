@@ -35,20 +35,49 @@ public struct LineSegmenter: Sendable {
 
     /// - Parameter layout: the layout the user types Japanese with, which keys may be read through.
     public func segments(of line: Substring, layout: KeyboardLayout = .qwerty) -> [Segment] {
-        let units = Tokenizer.tokens(of: line).flatMap(units(of:))
+        let units = Tokenizer.tokens(of: line).flatMap { self.units(of: $0, layout: layout) }
         return segments(of: resolvingAmbiguousWords(in: separatingWordsBeforeParticles(in: units)))
     }
 
     // MARK: Words
 
-    private func units(of token: TypedToken) -> [Unit] {
+    private func units(of token: TypedToken, layout: KeyboardLayout) -> [Unit] {
         let kinds: [Unit.Kind] = switch token.token {
-        case let .keys(run): KeyRun.qwertyTokens(run).flatMap(kinds(of:))
+        case let .keys(run): kinds(ofRun: run, layout: layout)
         default: kinds(of: token.token)
         }
         return kinds.enumerated().map { index, kind in
             Unit(kind: kind, spaceBefore: index == 0 && token.spaceBefore)
         }
+    }
+
+    /// A run of keys read through the layout where that reads better (jajsd/a as tatoeba in Ebi),
+    /// else in QWERTY as before.
+    private func kinds(ofRun run: String, layout: KeyboardLayout) -> [Unit.Kind] {
+        guard !layout.isQwerty else {
+            return KeyRun.qwertyTokens(run).flatMap(kinds(of:))
+        }
+        if run.contains("-") {
+            // ra-men typed with the layout's fingering, when QWERTY reads it as no romaji
+            let reading = layout.read(run)
+            if !RomajiParser.isPlainRomaji(run), RomajiParser.isPlainRomaji(reading) {
+                return [.romaji(Spelling(text: reading, typed: run, fingering: .layout))]
+            }
+            return KeyRun.qwertyTokens(run).flatMap(kinds(of:))
+        }
+        guard let pieces = KeyRunCover(lexicon: lexicon, layout: layout).cover(run),
+              pieces.contains(where: \.readsThroughLayout), !readsAsEnglishToo(run, pieces)
+        else {
+            return KeyRun.qwertyTokens(run).flatMap(kinds(of:))
+        }
+        return pieces.map(Unit.Kind.init)
+    }
+
+    /// Whole-run romaji in the layout that QWERTY English spells too (has, read in Ebi as かお):
+    /// English, the way the user types English.
+    private func readsAsEnglishToo(_ run: String, _ pieces: [RunPiece]) -> Bool {
+        guard pieces.count == 1, case .romaji = pieces[0] else { return false }
+        return !RomajiParser.isPlainRomaji(run) && wordCover.englishWords(run) != nil
     }
 
     private func kinds(of token: Token) -> [Unit.Kind] {
@@ -65,10 +94,10 @@ public struct LineSegmenter: Sendable {
 
     private func kinds(of letters: String) -> [Unit.Kind] {
         if letters.contains("-") {
-            return RomajiParser.isPlainRomaji(letters) ? [.romaji(letters)] : [.english([letters])]
+            return RomajiParser.isPlainRomaji(letters) ? [.romaji(qwerty: letters)] : [.english(qwerty: [letters])]
         }
         if RomajiParser.isPlainRomaji(letters) {
-            return lexicon.contains(letters) ? [.ambiguous(letters)] : [.romaji(letters)]
+            return lexicon.contains(letters) ? [.ambiguous(letters)] : [.romaji(qwerty: letters)]
         }
         if let pieces = wordCover.cover(letters) {
             return pieces.map(Unit.Kind.init)
@@ -77,7 +106,7 @@ public struct LineSegmenter: Sendable {
         if letters.first?.isUppercase == false, let pieces = wordCover.unknownStem(letters) {
             return pieces.map(Unit.Kind.init)
         }
-        return [.english([letters])]
+        return [.english(qwerty: [letters])]
     }
 
     /// Romaji that ends in a particle after an English word of three letters or more, right
@@ -86,8 +115,9 @@ public struct LineSegmenter: Sendable {
     private func separatingWordsBeforeParticles(in units: [Unit]) -> [Unit] {
         var result: [Unit] = []
         for (index, unit) in units.enumerated() {
-            guard case let .romaji(text) = unit.kind, index + 1 < units.count,
+            guard case let .romaji(spelling) = unit.kind, spelling.fingering == .qwerty, index + 1 < units.count,
                   case .english = units[index + 1].kind,
+                  case let text = spelling.text,
                   let particle = FunctionWords.particlesLongestFirst.first(where: { particle in
                       text.hasSuffix(particle) && text.count - particle.count >= 3 && lexicon.contains(text.dropLast(particle.count))
                   })
@@ -95,8 +125,8 @@ public struct LineSegmenter: Sendable {
                 result.append(unit)
                 continue
             }
-            result.append(Unit(kind: .english([String(text.dropLast(particle.count))]), spaceBefore: unit.spaceBefore))
-            result.append(Unit(kind: .romaji(particle), spaceBefore: false))
+            result.append(Unit(kind: .english(qwerty: [String(text.dropLast(particle.count))]), spaceBefore: unit.spaceBefore))
+            result.append(Unit(kind: .romaji(qwerty: particle), spaceBefore: false))
         }
         return result
     }
@@ -112,7 +142,7 @@ public struct LineSegmenter: Sendable {
     private func resolvingAmbiguousWords(in units: [Unit]) -> [Unit] {
         var units = units
         for index in units.indices where units[index].kind == .ambiguous("no") {
-            units[index].kind = before(index, in: units) == 2 ? .english(["no"]) : .romaji("no")
+            units[index].kind = before(index, in: units) == 2 ? .english(qwerty: ["no"]) : .romaji(qwerty: "no")
         }
         var start = 0
         while start < units.count {
@@ -133,7 +163,7 @@ public struct LineSegmenter: Sendable {
             let needed = words.map { $0.count <= 2 && $0 != "i" ? 2 : 1 }.min() ?? 1
             let english = before + after >= needed && (!words.contains("a") || before >= 1)
             for (index, word) in zip(start...end, words) {
-                units[index].kind = english ? .english([word]) : .romaji(word)
+                units[index].kind = english ? .english(qwerty: [word]) : .romaji(qwerty: word)
             }
             start = end + 1
         }
@@ -168,7 +198,7 @@ public struct LineSegmenter: Sendable {
             if unit.endsSentence {
                 return 0
             }
-            if case let .romaji(text) = unit.kind, FunctionWords.particles[text] != nil {
+            if case let .romaji(spelling) = unit.kind, FunctionWords.particles[spelling.text] != nil {
                 continue
             }
             if case .ambiguous = unit.kind {
@@ -187,27 +217,27 @@ public struct LineSegmenter: Sendable {
 
     private func segments(of units: [Unit]) -> [Segment] {
         var segments: [Segment] = []
-        func appendRomaji(_ text: String, spaceBefore: Bool) {
+        func appendRomaji(_ spelling: Spelling, spaceBefore: Bool) {
             if case var .romaji(clause)? = segments.last?.content {
-                clause.append(Spelling(qwerty: text))
+                clause.append(spelling)
                 segments[segments.count - 1].content = .romaji(clause)
             } else {
-                segments.append(Segment(content: .romaji(Clause([Spelling(qwerty: text)])), spaceBefore: spaceBefore))
+                segments.append(Segment(content: .romaji(Clause([spelling])), spaceBefore: spaceBefore))
             }
         }
         for (index, unit) in units.enumerated() {
             let content: Segment.Content
             switch unit.kind {
-            case let .romaji(text):
-                appendRomaji(text, spaceBefore: unit.spaceBefore)
+            case let .romaji(spelling):
+                appendRomaji(spelling, spaceBefore: unit.spaceBefore)
                 continue
             case let .digits(digits) where digitsTouchRomaji(at: index, in: units):
-                appendRomaji(digits, spaceBefore: unit.spaceBefore)
+                appendRomaji(Spelling(qwerty: digits), spaceBefore: unit.spaceBefore)
                 continue
             case let .digits(digits):
                 content = .digits(digits)
-            case let .english(words):
-                content = .english(Spelling(text: words.joined(separator: " "), typed: words.joined(), fingering: .qwerty))
+            case let .english(words, typed, fingering):
+                content = .english(Spelling(text: words.joined(separator: " "), typed: typed, fingering: fingering))
             case let .punctuation(character):
                 content = .punctuation(character, language(ofPunctuationAt: index, in: units))
             case let .mark(mark):
@@ -246,9 +276,9 @@ public struct LineSegmenter: Sendable {
 /// A word, number or mark of a line while the segmenter decides its language.
 private struct Unit {
     enum Kind: Equatable {
-        case romaji(String)
-        /// The English words of one token.
-        case english([String])
+        case romaji(Spelling)
+        /// The English words of one token, as read, with the keys that typed them.
+        case english(words: [String], typed: String, fingering: Fingering)
         /// Reads as romaji and is an English word; decided by the words around it.
         case ambiguous(String)
         case digits(String)
@@ -256,10 +286,26 @@ private struct Unit {
         case mark(String)
         case verbatim(String, Language)
 
+        static func romaji(qwerty text: String) -> Kind {
+            .romaji(Spelling(qwerty: text))
+        }
+
+        static func english(qwerty words: [String]) -> Kind {
+            .english(words: words, typed: words.joined(), fingering: .qwerty)
+        }
+
         init(_ piece: Piece) {
             switch piece {
-            case let .romaji(text): self = .romaji(text)
-            case let .english(words): self = .english(words)
+            case let .romaji(text): self = .romaji(qwerty: text)
+            case let .english(words): self = .english(qwerty: words)
+            }
+        }
+
+        init(_ piece: RunPiece) {
+            switch piece {
+            case let .romaji(spelling): self = .romaji(spelling)
+            case let .english(words): self = .english(qwerty: words)
+            case let .punctuation(character, _): self = .punctuation(character)
             }
         }
     }
@@ -275,7 +321,7 @@ private struct Unit {
     var languages: [Language] {
         switch kind {
         case .romaji: [.japanese]
-        case let .english(words): Array(repeating: .english, count: words.count)
+        case let .english(words, _, _): Array(repeating: .english, count: words.count)
         case let .verbatim(_, language): [language]
         case .ambiguous, .digits, .punctuation, .mark: []
         }
