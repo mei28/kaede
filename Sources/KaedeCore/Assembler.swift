@@ -94,7 +94,7 @@ private struct Part {
             return [try Part(segment, style: style, englishChoices: englishChoices, convert: convert)]
         }
         var parts: [Part] = []
-        for (index, phrase) in try convert(clause).enumerated() {
+        for (index, phrase) in try convert(clause.romaji).enumerated() {
             if phrase.language == .japanese, let last = parts.last, last.language == .japanese {
                 parts[parts.count - 1].append(phrase, at: index, of: clause)
             } else {
@@ -106,23 +106,26 @@ private struct Part {
         return parts
     }
 
-    private mutating func append(_ phrase: Bunsetsu, at index: Int, of clause: String) {
+    private mutating func append(_ phrase: Bunsetsu, at index: Int, of clause: Clause) {
         let start = text.utf16.count
         text += phrase.text
         units.append(ConversionUnit(
-            kind: .bunsetsu(clause: clause, index: index), text: phrase.text, reading: phrase.reading,
-            range: start..<text.utf16.count, line: 0, language: phrase.language
+            kind: .bunsetsu(clause: clause.romaji, index: index), text: phrase.text, reading: phrase.reading,
+            range: start..<text.utf16.count, line: 0, typed: clause.typed, language: phrase.language
         ))
     }
 
     private init(_ segment: Segment, style: PunctuationStyle, englishChoices: [String: ConversionCandidate], convert: (String) throws -> [Bunsetsu]) rethrows {
         spaceBefore = segment.spaceBefore
         switch segment.content {
-        case let .english(typed):
+        case let .english(spelling):
             // Turned Japanese, it is spaced as Japanese
-            let chosen = englishChoices[typed] ?? ConversionCandidate(typed, .english)
+            let chosen = englishChoices[spelling.text] ?? ConversionCandidate(spelling.text, .english)
             (text, language, role) = (chosen.text, chosen.language, .words)
-            units = [ConversionUnit(kind: .english(typed), text: text, reading: typed, range: 0..<text.utf16.count, line: 0, language: language)]
+            units = [ConversionUnit(
+                kind: .english(spelling.text), text: text, reading: spelling.text, range: 0..<text.utf16.count, line: 0,
+                typed: spelling.typed, language: language
+            )]
         case .romaji:
             preconditionFailure("clauses are split into parts by parts(of:)")
         case let .japaneseText(text):

@@ -24,22 +24,35 @@ public struct ConversionUnit: Equatable, Sendable {
     public var range: Range<Int>
     /// Which line of the text it is on, from 0.
     public var line: Int
+    /// The keys that typed it as QWERTY typed them: a phrase's whole clause, one for one with the
+    /// clause's romaji; English's own keys.
+    public var typed: String
     /// The language it counts in now: a phrase turned English, or English turned Japanese.
     public var language: Language
 
-    /// - Parameter language: by default, Japanese for a phrase and English for English.
-    public init(kind: Kind, text: String, reading: String, range: Range<Int>, line: Int, language: Language? = nil) {
+    /// - Parameters:
+    ///   - typed: by default, the clause or the English, as typed in QWERTY.
+    ///   - language: by default, Japanese for a phrase and English for English.
+    public init(kind: Kind, text: String, reading: String, range: Range<Int>, line: Int, typed: String? = nil, language: Language? = nil) {
         self.kind = kind
         self.text = text
         self.reading = reading
         self.range = range
         self.line = line
-        self.language = language ?? {
-            if case .english = kind { .english } else { .japanese }
-        }()
+        switch kind {
+        case let .bunsetsu(clause, _):
+            self.typed = typed ?? clause
+            self.language = language ?? .japanese
+        case let .english(english):
+            self.typed = typed ?? english
+            self.language = language ?? .english
+        }
     }
 
     func shifted(by offset: Int, line: Int) -> ConversionUnit {
-        ConversionUnit(kind: kind, text: text, reading: reading, range: (range.lowerBound + offset)..<(range.upperBound + offset), line: line, language: language)
+        ConversionUnit(
+            kind: kind, text: text, reading: reading, range: (range.lowerBound + offset)..<(range.upperBound + offset), line: line,
+            typed: typed, language: language
+        )
     }
 }

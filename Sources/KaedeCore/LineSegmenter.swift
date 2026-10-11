@@ -1,10 +1,10 @@
 /// A part of a line, ready to be converted and put together.
 public struct Segment: Equatable, Sendable {
     public enum Content: Equatable, Sendable {
-        /// Words as typed, joined by one space.
-        case english(String)
+        /// Words as read, joined by one space, with the keys that typed them.
+        case english(Spelling)
         /// A clause of romaji, with the digits next to it, to convert as one sentence.
-        case romaji(String)
+        case romaji(Clause)
         /// Text typed with an input method, kept.
         case japaneseText(String)
         /// A number next to no romaji.
@@ -178,10 +178,11 @@ public struct LineSegmenter: Sendable {
     private func segments(of units: [Unit]) -> [Segment] {
         var segments: [Segment] = []
         func appendRomaji(_ text: String, spaceBefore: Bool) {
-            if case let .romaji(clause)? = segments.last?.content {
-                segments[segments.count - 1].content = .romaji(clause + text)
+            if case var .romaji(clause)? = segments.last?.content {
+                clause.append(Spelling(qwerty: text))
+                segments[segments.count - 1].content = .romaji(clause)
             } else {
-                segments.append(Segment(content: .romaji(text), spaceBefore: spaceBefore))
+                segments.append(Segment(content: .romaji(Clause([Spelling(qwerty: text)])), spaceBefore: spaceBefore))
             }
         }
         for (index, unit) in units.enumerated() {
@@ -196,7 +197,7 @@ public struct LineSegmenter: Sendable {
             case let .digits(digits):
                 content = .digits(digits)
             case let .english(words):
-                content = .english(words.joined(separator: " "))
+                content = .english(Spelling(text: words.joined(separator: " "), typed: words.joined(), fingering: .qwerty))
             case let .punctuation(character):
                 content = .punctuation(character, language(ofPunctuationAt: index, in: units))
             case let .mark(mark):
@@ -204,7 +205,7 @@ public struct LineSegmenter: Sendable {
             case let .verbatim(text, .japanese):
                 content = .japaneseText(text)
             case let .verbatim(text, .english):
-                content = .english(text)
+                content = .english(Spelling(qwerty: text))
             case .ambiguous:
                 preconditionFailure("every ambiguous word was decided")
             }

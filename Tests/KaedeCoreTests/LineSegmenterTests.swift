@@ -37,11 +37,11 @@ private let lexicon = EnglishLexicon(wordList: """
     """)
 
 private func romaji(_ text: String, space: Bool = false) -> Segment {
-    Segment(content: .romaji(text), spaceBefore: space)
+    Segment(content: .romaji(Clause([Spelling(qwerty: text)])), spaceBefore: space)
 }
 
 private func english(_ text: String, space: Bool = false) -> Segment {
-    Segment(content: .english(text), spaceBefore: space)
+    Segment(content: .english(Spelling(text: text, typed: text.filter { $0 != " " }, fingering: .qwerty)), spaceBefore: space)
 }
 
 private func punctuation(_ character: Character, _ language: Language) -> Segment {
