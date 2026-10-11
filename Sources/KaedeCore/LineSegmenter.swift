@@ -36,7 +36,7 @@ public struct LineSegmenter: Sendable {
     /// - Parameter layout: the layout the user types Japanese with, which keys may be read through.
     public func segments(of line: Substring, layout: KeyboardLayout = .qwerty) -> [Segment] {
         let units = Tokenizer.tokens(of: line).flatMap { self.units(of: $0, layout: layout) }
-        return segments(of: resolvingAmbiguousWords(in: separatingWordsBeforeParticles(in: units)))
+        return segments(of: resolvingAmbiguousWords(in: resolvingCrossReadings(in: separatingWordsBeforeParticles(in: units))))
     }
 
     // MARK: Words
@@ -65,18 +65,19 @@ public struct LineSegmenter: Sendable {
             }
             return KeyRun.qwertyTokens(run).flatMap(kinds(of:))
         }
-        guard let pieces = KeyRunCover(lexicon: lexicon, layout: layout).cover(run),
-              pieces.contains(where: \.readsThroughLayout), !readsAsEnglishToo(run, pieces)
-        else {
+        guard let pieces = KeyRunCover(lexicon: lexicon, layout: layout).cover(run), pieces.contains(where: \.readsThroughLayout) else {
+            return KeyRun.qwertyTokens(run).flatMap(kinds(of:))
+        }
+        // Read wholly through the layout, yet QWERTY English spells it too
+        if pieces.allSatisfy(\.readsThroughLayout), !RomajiParser.isPlainRomaji(run), let words = wordCover.englishWords(run) {
+            // has, which Ebi reads as かお: the words around decide
+            if pieces.count == 1, case let .romaji(spelling) = pieces[0] {
+                return [.crossReading(english: words, romaji: spelling)]
+            }
+            // far, which Ebi reads as いあ。: the layout's punctuation makes it no Japanese
             return KeyRun.qwertyTokens(run).flatMap(kinds(of:))
         }
         return pieces.map(Unit.Kind.init)
-    }
-
-    /// A run read wholly through the layout that QWERTY English spells too (has, read in Ebi as
-    /// かお; far, read as いあ。): English, the way the user types English.
-    private func readsAsEnglishToo(_ run: String, _ pieces: [RunPiece]) -> Bool {
-        pieces.allSatisfy(\.readsThroughLayout) && !RomajiParser.isPlainRomaji(run) && wordCover.englishWords(run) != nil
     }
 
     private func kinds(of token: Token) -> [Unit.Kind] {
@@ -131,6 +132,22 @@ public struct LineSegmenter: Sendable {
     }
 
     // MARK: Context
+
+    /// Decides the words QWERTY English and the layout's romaji both spell by the fingering
+    /// around them: the nearest word before and after count +1 when typed in QWERTY and -1 when
+    /// read through the layout, and the word is English when the sum is 0 or more (has alone,
+    /// watashiha good desu), else romaji (hsid and lsid: これ あげ それ).
+    private func resolvingCrossReadings(in units: [Unit]) -> [Unit] {
+        var units = units
+        for index in units.indices {
+            guard case let .crossReading(words, romaji) = units[index].kind else { continue }
+            let before = units[..<index].reversed().prefix { !$0.endsSentence }.lazy.compactMap(\.fingering).first
+            let after = units[(index + 1)...].prefix { !$0.endsSentence }.lazy.compactMap(\.fingering).first
+            let score = [before, after].compactMap { $0 }.map { $0 == .qwerty ? 1 : -1 }.reduce(0, +)
+            units[index].kind = score >= 0 ? .english(words: words, typed: romaji.typed, fingering: .qwerty) : .romaji(romaji)
+        }
+        return units
+    }
 
     /// Decides the words that are both romaji and English by the words around them.
     ///
@@ -245,7 +262,7 @@ public struct LineSegmenter: Sendable {
                 content = .japaneseText(text)
             case let .verbatim(text, .english):
                 content = .english(Spelling(qwerty: text))
-            case .ambiguous:
+            case .ambiguous, .crossReading:
                 preconditionFailure("every ambiguous word was decided")
             }
             segments.append(Segment(content: content, spaceBefore: unit.spaceBefore))
@@ -280,6 +297,8 @@ private struct Unit {
         case english(words: [String], typed: String, fingering: Fingering)
         /// Reads as romaji and is an English word; decided by the words around it.
         case ambiguous(String)
+        /// QWERTY English, and romaji when read through the layout; decided by the fingering around it.
+        case crossReading(english: [String], romaji: Spelling)
         case digits(String)
         case punctuation(Character)
         case mark(String)
@@ -322,7 +341,17 @@ private struct Unit {
         case .romaji: [.japanese]
         case let .english(words, _, _): Array(repeating: .english, count: words.count)
         case let .verbatim(_, language): [language]
-        case .ambiguous, .digits, .punctuation, .mark: []
+        case .ambiguous, .crossReading, .digits, .punctuation, .mark: []
+        }
+    }
+
+    /// Which fingering typed its words; none for numbers, marks and undecided readings.
+    var fingering: Fingering? {
+        switch kind {
+        case let .romaji(spelling): spelling.fingering
+        case let .english(_, _, fingering): fingering
+        case .ambiguous, .verbatim: .qwerty
+        case .crossReading, .digits, .punctuation, .mark: nil
         }
     }
 

@@ -95,3 +95,18 @@ private func notation(_ typed: String, _ layout: KeyboardLayout = .ebi) -> Strin
         #expect(notation("far") == "en(far)")
     }
 }
+
+@Suite struct CrossReadingTests {
+    @Test(arguments: [
+        // has reads かお in Ebi: alone, it stays English, the way the user types English
+        ("has", "en(has)"),
+        // Between words typed in Ebi, and is Ebi's あげ
+        ("hsid and lsid", "ja(L:koreagesore)"),
+        // Between words typed in QWERTY, good stays English
+        ("watashiha good desu", "ja(watashiha) en(good) ja(desu)"),
+        ("I checked the build log and the tests pass", "en(I) en(checked) en(the) en(build) en(log) en(and) en(the) en(tests) en(pass)"),
+    ])
+    func decidesWordsBothReadingsSpellByTheFingeringAround(typed: String, expected: String) {
+        #expect(notation(typed) == expected)
+    }
+}
