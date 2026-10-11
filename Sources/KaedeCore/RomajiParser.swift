@@ -12,7 +12,7 @@ public enum RomajiParser {
         var reachable = Array(repeating: false, count: characters.count + 1)
         reachable[0] = true
         for start in characters.indices where reachable[start] {
-            for end in syllableEnds(in: characters, from: start, plain: true) {
+            for end in syllableEnds(in: characters, from: start) {
                 reachable[end] = true
             }
             if start > 0, characters[start] == "-" {
@@ -22,17 +22,15 @@ public enum RomajiParser {
         return reachable
     }
 
-    /// The positions where a syllable starting at `start` can end, shortest first.
+    /// The positions where a plain syllable starting at `start` can end, shortest first.
     /// A sokuon (the first of a doubled consonant) counts as a syllable of its own.
-    static func syllableEnds(in characters: [Character], from start: Int, plain: Bool = false) -> [Int] {
-        let smallKanaPrefixes: Set<Character> = ["x", "l"]
+    static func syllableEnds(in characters: [Character], from start: Int) -> [Int] {
         var ends: [Int] = []
-        if isSokuon(characters, at: start), !(plain && smallKanaPrefixes.contains(characters[start])) {
+        if isSokuon(characters, at: start) {
             ends.append(start + 1)
         }
         for length in 1...maxSyllableLength where start + length <= characters.count {
-            let syllable = String(characters[start..<start + length])
-            if syllables.contains(syllable), !(plain && smallKanaPrefixes.contains(characters[start])) {
+            if syllables.contains(String(characters[start..<start + length])) {
                 ends.append(start + length)
             }
         }
@@ -40,11 +38,13 @@ public enum RomajiParser {
     }
 
     /// A consonant typed twice gives っ for the first one ("kitte", "macchi"); "nn" is ん instead.
+    /// Not x or l: "ll" would start small kana (あっょ for "allyo"), which ordinary typing never
+    /// produces.
     private static func isSokuon(_ characters: [Character], at index: Int) -> Bool {
         let character = characters[index]
         return index + 1 < characters.count
             && characters[index + 1] == character
-            && character.isLetter && character != "n"
+            && character.isLetter && !"nxl".contains(character)
             && !vowels.contains(String(character))
     }
 
@@ -54,8 +54,6 @@ public enum RomajiParser {
         // A lone "n" is ん. Letting it split "na" as ん+あ only changes the kana, never whether
         // the letters are readable, so it needs no lookahead here.
         var table = Set(vowels + ["n", "nn"])
-        // Read as 、 and 。
-        table.formUnion([",", "."])
         let plain = ["k", "s", "t", "n", "h", "m", "y", "r", "w", "g", "z", "d", "b", "p"]
         // Hepburn spellings, where each consonant takes every vowel as IMEs accept (sha, che, tsa, fo)
         let hepburn = ["sh", "ch", "ts", "j", "f"]
@@ -71,13 +69,7 @@ public enum RomajiParser {
                 table.insert(consonant + "y" + vowel)
             }
         }
-        // Small kana: x or l before a vowel, tu, or a y-syllable (xa, ltu, xyo)
-        for prefix in ["x", "l"] {
-            for vowel in vowels {
-                table.insert(prefix + vowel)
-            }
-            table.formUnion([prefix + "tu", prefix + "ya", prefix + "yu", prefix + "yo"])
-        }
+        // Small kana (xa, ltu) are left out: plain typing never spells them
         return table
     }()
 

@@ -35,7 +35,7 @@ public struct WordCover: Sendable {
         best[0][State.start] = Step(cost: Cost(), previous: nil)
         for position in characters.indices {
             for (state, step) in best[position] {
-                for end in RomajiParser.syllableEnds(in: characters, from: position, plain: true) {
+                for end in RomajiParser.syllableEnds(in: characters, from: position) {
                     let (next, cost) = state.addingRomaji(to: step.cost)
                     relax(&best[end], next, Step(cost: cost, previous: (position, state)))
                 }
