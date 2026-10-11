@@ -15,6 +15,8 @@ final class InputForm {
     private let handler: FormKeyHandler
     let worker: ConversionWorker
     private(set) var style: PunctuationStyle
+    /// The layout the user types Japanese with; QWERTY until the settings say otherwise.
+    private(set) var layout = KeyboardLayout.qwerty
     /// Converts the text as it is now; a newer change cancels it.
     private var previewTask: Task<Void, Never>?
     /// The last conversion that finished, and what it converted.
@@ -139,6 +141,11 @@ final class InputForm {
 
     func apply(style: PunctuationStyle) {
         self.style = style
+        convertForPreview()
+    }
+
+    func apply(layout: KeyboardLayout) {
+        self.layout = layout
         convertForPreview()
     }
 
@@ -308,12 +315,12 @@ final class InputForm {
     func convertForPreview() {
         previewTask?.cancel()
         model.previewIsCurrent = false
-        let request = Preview.Request(text: textView.string, style: style, choices: choices)
+        let request = Preview.Request(text: textView.string, style: style, layout: layout, choices: choices)
         previewTask = Task { [worker] in
             do {
                 // Keys typed in a burst need one conversion, after the last
                 try await Task.sleep(for: Self.previewPause)
-                let converted = try await worker.convert(request.text, style: request.style, choices: request.choices)
+                let converted = try await worker.convert(request.text, style: request.style, layout: request.layout, choices: request.choices)
                 show(Preview(request: request, converted: converted))
             } catch is CancellationError {
                 // A newer change converts instead
@@ -326,12 +333,12 @@ final class InputForm {
     /// The conversion of the text as it is now, with the choices: the preview when it is
     /// current, else converted now. Nil when converting failed, which beeps.
     func currentConversion() async -> ConvertedText? {
-        let request = Preview.Request(text: textView.string, style: style, choices: choices)
+        let request = Preview.Request(text: textView.string, style: style, layout: layout, choices: choices)
         if let preview, preview.request == request {
             return preview.converted
         }
         do {
-            let converted = try await worker.convert(request.text, style: request.style, choices: request.choices)
+            let converted = try await worker.convert(request.text, style: request.style, layout: request.layout, choices: request.choices)
             show(Preview(request: request, converted: converted))
             return converted
         } catch {
@@ -447,6 +454,7 @@ struct Preview {
     struct Request: Equatable {
         var text: String
         var style: PunctuationStyle
+        var layout: KeyboardLayout
         var choices: ConversionChoices
     }
 

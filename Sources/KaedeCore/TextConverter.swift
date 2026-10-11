@@ -7,9 +7,13 @@ public struct TextConverter: Sendable {
     }
 
     /// - Parameters:
+    ///   - layout: the layout the user types Japanese with.
     ///   - choices: conversions the user chose, used in place of `kanji`.
     ///   - kanji: converts a clause of romaji (with digits) into Japanese phrases.
-    public func convert(_ text: String, style: PunctuationStyle, choices: ConversionChoices = ConversionChoices(), kanji: (String) throws -> [Bunsetsu]) rethrows -> ConvertedText {
+    public func convert(
+        _ text: String, style: PunctuationStyle, layout: KeyboardLayout = .qwerty, choices: ConversionChoices = ConversionChoices(),
+        kanji: (String) throws -> [Bunsetsu]
+    ) rethrows -> ConvertedText {
         var converted = ConvertedText(text: "", units: [])
         func append(_ line: ConvertedText, number: Int) {
             let offset = converted.text.utf16.count
@@ -19,17 +23,19 @@ public struct TextConverter: Sendable {
         var lineStart = text.startIndex
         var number = 0
         for index in text.indices where text[index].isNewline {
-            append(try convertLine(text[lineStart..<index], style: style, choices: choices, kanji: kanji), number: number)
+            append(try convertLine(text[lineStart..<index], style: style, layout: layout, choices: choices, kanji: kanji), number: number)
             converted.text.append(text[index])
             lineStart = text.index(after: index)
             number += 1
         }
-        append(try convertLine(text[lineStart...], style: style, choices: choices, kanji: kanji), number: number)
+        append(try convertLine(text[lineStart...], style: style, layout: layout, choices: choices, kanji: kanji), number: number)
         return converted
     }
 
-    private func convertLine(_ line: Substring, style: PunctuationStyle, choices: ConversionChoices, kanji: (String) throws -> [Bunsetsu]) rethrows -> ConvertedText {
-        try Assembler.assemble(segmenter.segments(of: line), style: style, englishChoices: choices.english) { clause in
+    private func convertLine(
+        _ line: Substring, style: PunctuationStyle, layout: KeyboardLayout, choices: ConversionChoices, kanji: (String) throws -> [Bunsetsu]
+    ) rethrows -> ConvertedText {
+        try Assembler.assemble(segmenter.segments(of: line, layout: layout), style: style, englishChoices: choices.english) { clause in
             if let chosen = choices.clauses[clause] {
                 return chosen
             }

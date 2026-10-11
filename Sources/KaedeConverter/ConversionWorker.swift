@@ -28,9 +28,11 @@ public actor ConversionWorker {
     }
 
     /// Throws CancellationError when the task is cancelled: a newer text has taken its place.
-    public func convert(_ text: String, style: PunctuationStyle, choices: ConversionChoices = ConversionChoices()) throws -> ConvertedText {
+    public func convert(
+        _ text: String, style: PunctuationStyle, layout: KeyboardLayout = .qwerty, choices: ConversionChoices = ConversionChoices()
+    ) throws -> ConvertedText {
         try Task.checkCancellation()
-        return try converter.convert(text, style: style, choices: choices) { clause in
+        return try converter.convert(text, style: style, layout: layout, choices: choices) { clause in
             try Task.checkCancellation()
             return try kanji(for: clause)
         }

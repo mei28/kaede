@@ -33,7 +33,8 @@ public struct LineSegmenter: Sendable {
         wordCover = WordCover(lexicon: lexicon)
     }
 
-    public func segments(of line: Substring) -> [Segment] {
+    /// - Parameter layout: the layout the user types Japanese with, which keys may be read through.
+    public func segments(of line: Substring, layout: KeyboardLayout = .qwerty) -> [Segment] {
         let units = Tokenizer.tokens(of: line).flatMap(units(of:))
         return segments(of: resolvingAmbiguousWords(in: separatingWordsBeforeParticles(in: units)))
     }
