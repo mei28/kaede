@@ -67,7 +67,7 @@ public struct ConversionSelection: Equatable, Sendable {
             phrases[index].language = candidate.language
             choices.clauses[clause] = phrases
         case let .english(typed):
-            choices.english[typed] = candidate.text == typed ? nil : candidate.text
+            choices.english[typed] = candidate == ConversionCandidate(typed, .english) ? nil : candidate
         }
         return choices
     }

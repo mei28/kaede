@@ -65,7 +65,7 @@ private func japanese(_ texts: String...) -> [ConversionCandidate] {
         var selection = try #require(ConversionSelection(units: units, line: 0, choices: ConversionChoices()))
         selection.move(by: 2)
         let japanese = selection.choices(ConversionChoices(), choosing: ConversionCandidate("ごおgぇ", .japanese))
-        #expect(japanese.english["google"] == "ごおgぇ")
+        #expect(japanese.english["google"] == ConversionCandidate("ごおgぇ", .japanese))
         #expect(selection.choices(japanese, choosing: ConversionCandidate("google", .english)).english["google"] == nil)
     }
 
@@ -89,7 +89,7 @@ private func japanese(_ texts: String...) -> [ConversionCandidate] {
 
     @Test func remembersTheChoicesItStartedWith() throws {
         var start = ConversionChoices()
-        start.english["sake"] = "酒"
+        start.english["sake"] = ConversionCandidate("酒", .japanese)
         #expect(try #require(ConversionSelection(units: units, line: 0, choices: start)).choicesAtStart == start)
     }
 }

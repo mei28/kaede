@@ -13,7 +13,7 @@ private let kanji: [String: String] = [
 ]
 
 private func assemble(_ segments: [Segment], style: PunctuationStyle = .touten) -> String {
-    Assembler.assemble(segments, style: style, japaneseForEnglish: [:]) { clause in
+    Assembler.assemble(segments, style: style, englishChoices: [:]) { clause in
         guard let converted = kanji[clause] else {
             Issue.record("no conversion for \(clause)")
             return []
@@ -84,7 +84,7 @@ private func segment(_ content: Segment.Content, space: Bool = false) -> Segment
     ]
 
     @Test func spacesAPhraseTurnedEnglishAsEnglish() {
-        let line = Assembler.assemble([Segment(content: .romaji("kyouhaweare"), spaceBefore: false)], style: .touten, japaneseForEnglish: [:]) { _ in phrases }
+        let line = Assembler.assemble([Segment(content: .romaji("kyouhaweare"), spaceBefore: false)], style: .touten, englishChoices: [:]) { _ in phrases }
         #expect(line.text == "今日は we are")
         #expect(line.units == [
             ConversionUnit(kind: .bunsetsu(clause: "kyouhaweare", index: 0), text: "今日は", reading: "きょうは", range: 0..<3, line: 0),

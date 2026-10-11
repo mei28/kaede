@@ -124,7 +124,7 @@ private let kanji: [String: String] = [
 
     @Test func writesEnglishTheUserTurnedJapaneseAsJapanese() {
         var choices = ConversionChoices()
-        choices.english["sake"] = "酒"
+        choices.english["sake"] = ConversionCandidate("酒", .japanese)
         let converted = convert("this is sake", choices)
         #expect(converted.text == "this is 酒")
         #expect(converted.units.last == ConversionUnit(kind: .english("sake"), text: "酒", reading: "sake", range: 8..<9, line: 0, language: .japanese))

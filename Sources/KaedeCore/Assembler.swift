@@ -22,14 +22,14 @@ public enum PunctuationStyle: String, CaseIterable, Sendable {
 public enum Assembler {
     /// The line, and its phrases and English with their places on the line (line 0).
     /// - Parameters:
-    ///   - japaneseForEnglish: Japanese the user chose for English words, written as Japanese.
+    ///   - englishChoices: what the user turned English into, by the English as it shows.
     ///   - convert: converts a clause of romaji into its phrases.
-    public static func assemble(_ segments: [Segment], style: PunctuationStyle, japaneseForEnglish: [String: String], convert: (String) throws -> [Bunsetsu]) rethrows -> ConvertedText {
+    public static func assemble(_ segments: [Segment], style: PunctuationStyle, englishChoices: [String: ConversionCandidate], convert: (String) throws -> [Bunsetsu]) rethrows -> ConvertedText {
         var line = ""
         var units: [ConversionUnit] = []
         var previous: Part?
         for segment in segments {
-            for part in try Part.parts(of: segment, style: style, japaneseForEnglish: japaneseForEnglish, convert: convert) {
+            for part in try Part.parts(of: segment, style: style, englishChoices: englishChoices, convert: convert) {
                 if let previous, spaced(previous, part) {
                     line.append(" ")
                 }
@@ -89,9 +89,9 @@ private struct Part {
 
     /// One part for a segment, but a clause with phrases turned English splits into its runs of
     /// Japanese and its English phrases, to be spaced apart.
-    static func parts(of segment: Segment, style: PunctuationStyle, japaneseForEnglish: [String: String], convert: (String) throws -> [Bunsetsu]) rethrows -> [Part] {
+    static func parts(of segment: Segment, style: PunctuationStyle, englishChoices: [String: ConversionCandidate], convert: (String) throws -> [Bunsetsu]) rethrows -> [Part] {
         guard case let .romaji(clause) = segment.content else {
-            return [try Part(segment, style: style, japaneseForEnglish: japaneseForEnglish, convert: convert)]
+            return [try Part(segment, style: style, englishChoices: englishChoices, convert: convert)]
         }
         var parts: [Part] = []
         for (index, phrase) in try convert(clause).enumerated() {
@@ -115,13 +115,13 @@ private struct Part {
         ))
     }
 
-    private init(_ segment: Segment, style: PunctuationStyle, japaneseForEnglish: [String: String], convert: (String) throws -> [Bunsetsu]) rethrows {
+    private init(_ segment: Segment, style: PunctuationStyle, englishChoices: [String: ConversionCandidate], convert: (String) throws -> [Bunsetsu]) rethrows {
         spaceBefore = segment.spaceBefore
         switch segment.content {
         case let .english(typed):
             // Turned Japanese, it is spaced as Japanese
-            let japanese = japaneseForEnglish[typed]
-            (text, language, role) = (japanese ?? typed, japanese == nil ? .english : .japanese, .words)
+            let chosen = englishChoices[typed] ?? ConversionCandidate(typed, .english)
+            (text, language, role) = (chosen.text, chosen.language, .words)
             units = [ConversionUnit(kind: .english(typed), text: text, reading: typed, range: 0..<text.utf16.count, line: 0, language: language)]
         case .romaji:
             preconditionFailure("clauses are split into parts by parts(of:)")

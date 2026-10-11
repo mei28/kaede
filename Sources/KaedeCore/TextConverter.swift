@@ -29,7 +29,7 @@ public struct TextConverter: Sendable {
     }
 
     private func convertLine(_ line: Substring, style: PunctuationStyle, choices: ConversionChoices, kanji: (String) throws -> [Bunsetsu]) rethrows -> ConvertedText {
-        try Assembler.assemble(segmenter.segments(of: line), style: style, japaneseForEnglish: choices.english) { clause in
+        try Assembler.assemble(segmenter.segments(of: line), style: style, englishChoices: choices.english) { clause in
             if let chosen = choices.clauses[clause] {
                 return chosen
             }
