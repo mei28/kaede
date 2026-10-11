@@ -41,3 +41,15 @@ private func notation(_ typed: String, _ layout: KeyboardLayout = .ebi) -> Strin
         #expect(notation(typed, .ebi) == notation(typed, .qwerty))
     }
 }
+
+@Suite struct LayoutSwitchTests {
+    @Test func followsJapaneseThatChangesFingeringMidRun() {
+        // The user's own line: QWERTY watashino, then Ebi risoutekinihakonnnakannjide
+        #expect(notation("watashinoiflsgjdhfkf;ahskkkahakk.fmd") == "ja(watashino + L:risoutekinihakonnnakannjide)")
+    }
+
+    @Test func changesFingeringOnlyBetweenLongEnoughStretches() {
+        // kaisha read whole in QWERTY, not ka in QWERTY then isha read some other way
+        #expect(notation("kaisha") == "ja(kaisha)")
+    }
+}

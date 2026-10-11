@@ -21,7 +21,8 @@ enum RunPiece: Equatable {
 /// romaji and English, and romaji typed with the layout's fingering (jajsd/a as tatoeba in Ebi).
 ///
 /// Ways of reading the run are compared by the rules they break, then the pieces they make,
-/// then how many syllables, English letters and marks they take (fewer kana: から over はいあ),
+/// then how often Japanese changes fingering, then how many syllables, English letters and marks
+/// they take (fewer kana: から over はいあ),
 /// then how many keys they read through the layout (QWERTY when both read alike), then how
 /// uncommon their English words are.
 struct KeyRunCover {
@@ -105,10 +106,14 @@ struct KeyRunCover {
             return []
         }
         let continuing = state.last == .romaji(fingering)
-        if !continuing {
-            // Japanese keeps one fingering, and romaji typed with the layout stays clear of English
-            if case .romaji = state.last { return [] }
-            if fingering == .layout, state.last == .english { return [] }
+        // Japanese changes fingering only between stretches of three syllables or more
+        let switching = !continuing && state.last.isRomaji
+        if switching, state.syllables < 3 {
+            return []
+        }
+        // Romaji typed with the layout stays clear of English
+        if fingering == .layout, state.last == .english {
+            return []
         }
         let reading = keys.reading(fingering)
         return RomajiParser.syllableEnds(in: reading, from: position).map { end in
@@ -121,7 +126,11 @@ struct KeyRunCover {
                 cost.pieces = 1
                 cost.violations = state.violationsTouching(romajiIn: fingering)
             }
+            if switching {
+                cost.switches = 1
+            }
             var next = continuing ? state : State()
+            next.afterSwitch = continuing ? state.afterSwitch : switching
             next.last = .romaji(fingering)
             next.syllables = min((continuing ? state.syllables : 0) + 1, 3)
             let isSokuon = end == position + 1 && !"aiueon".contains(reading[position])
@@ -131,7 +140,7 @@ struct KeyRunCover {
     }
 
     private func wordMoves(from state: State, at position: Int, keys: Keys) -> [Move] {
-        guard state.sokuon == nil, state.last != .qwertyPeriod, state.last != .romaji(.layout) else { return [] }
+        guard state.sokuon == nil, state.last != .qwertyPeriod, state.last != .romaji(.layout), state.romajiMayEnd else { return [] }
         var moves: [Move] = []
         for end in (position + 1)...min(keys.count, position + Self.longestWord) {
             let word = String(keys.typed[position..<end])
@@ -163,7 +172,7 @@ struct KeyRunCover {
 
     private func punctuationMoves(from state: State, at position: Int, keys: Keys) -> [Move] {
         let key = keys.typed[position]
-        guard ",.".contains(key), state.sokuon == nil, state.last != .qwertyPeriod else { return [] }
+        guard ",.".contains(key), state.sokuon == nil, state.last != .qwertyPeriod, state.romajiMayEnd else { return [] }
         var cost = Cost()
         cost.marks = 1
         cost.violations = state.violationsEndingEnglish() + (state.last == .start ? 1 : 0)
@@ -180,7 +189,7 @@ struct KeyRunCover {
 
     /// The cost of ending the run in `state`, or nil when it cannot end there.
     private func finishing(_ state: State) -> Cost? {
-        guard state.sokuon == nil, state.last != .qwertyPeriod else { return nil }
+        guard state.sokuon == nil, state.last != .qwertyPeriod, state.romajiMayEnd else { return nil }
         var cost = Cost()
         cost.violations = state.violationsEndingEnglish()
         return cost
@@ -233,11 +242,17 @@ struct KeyRunCover {
             case english
             case qwertyComma
             case qwertyPeriod
+
+            var isRomaji: Bool {
+                if case .romaji = self { true } else { false }
+            }
         }
 
         var last = Last.start
         /// Syllables of the current romaji piece, up to 3.
         var syllables = 0
+        /// The current romaji piece came right after romaji in the other fingering.
+        var afterSwitch = false
         /// A sokuon waiting for a syllable read the same way.
         var sokuon: Fingering?
         var englishWords = 0
@@ -254,11 +269,17 @@ struct KeyRunCover {
         func violationsEndingEnglish() -> Int {
             last == .english && lastWordIsAOrI ? 1 : 0
         }
+
+        /// Romaji that changed fingering ends only after three syllables, like the stretch before it.
+        var romajiMayEnd: Bool {
+            !(afterSwitch && syllables < 3)
+        }
     }
 
     struct Cost: Comparable {
         var violations = 0
         var pieces = 0
+        var switches = 0
         var syllables = 0
         var englishLetters = 0
         var marks = 0
@@ -272,15 +293,15 @@ struct KeyRunCover {
 
         static func + (lhs: Cost, rhs: Cost) -> Cost {
             Cost(
-                violations: lhs.violations + rhs.violations, pieces: lhs.pieces + rhs.pieces,
+                violations: lhs.violations + rhs.violations, pieces: lhs.pieces + rhs.pieces, switches: lhs.switches + rhs.switches,
                 syllables: lhs.syllables + rhs.syllables, englishLetters: lhs.englishLetters + rhs.englishLetters,
                 marks: lhs.marks + rhs.marks, layoutKeys: lhs.layoutKeys + rhs.layoutKeys, english: lhs.english + rhs.english
             )
         }
 
         static func < (lhs: Cost, rhs: Cost) -> Bool {
-            (lhs.violations, lhs.pieces, lhs.taken, lhs.layoutKeys, lhs.english)
-                < (rhs.violations, rhs.pieces, rhs.taken, rhs.layoutKeys, rhs.english)
+            (lhs.violations, lhs.pieces, lhs.switches, lhs.taken, lhs.layoutKeys, lhs.english)
+                < (rhs.violations, rhs.pieces, rhs.switches, rhs.taken, rhs.layoutKeys, rhs.english)
         }
     }
 
