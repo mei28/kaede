@@ -65,6 +65,7 @@ public struct ConversionSelection: Equatable, Sendable {
             var phrases = phrasesOfSelectedClause()
             phrases[index].text = candidate.text
             phrases[index].language = candidate.language
+            phrases[index].isChosen = true
             choices.clauses[clause] = phrases
         case let .english(typed):
             choices.english[typed] = candidate == ConversionCandidate(typed, .english) ? nil : candidate
@@ -121,6 +122,8 @@ public struct ConversionSelection: Equatable, Sendable {
         while last + 1 < units.count, sameClause(units[last + 1]) {
             last += 1
         }
-        return units[first...last].map { Bunsetsu(reading: $0.reading, text: $0.text, language: $0.language) }
+        return units[first...last].map {
+            Bunsetsu(reading: $0.reading, text: $0.text, language: $0.language, letterCount: $0.letterCount, isChosen: $0.isChosen)
+        }
     }
 }

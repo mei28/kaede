@@ -42,7 +42,7 @@ public struct TextConverter: Sendable {
             // On its own a particle or verb ending has no sentence to choose its kanji by (の would
             // be 野, した 下)
             if let kana = FunctionWords.kana(of: clause) {
-                return [Bunsetsu(reading: kana, text: kana)]
+                return [Bunsetsu(reading: kana, text: kana, letterCount: clause.count)]
             }
             return try kanji(clause)
         }

@@ -3,10 +3,10 @@ import Testing
 
 /// 今日は天気が google (line 0) and 酒 (line 1), as the converter would mark them.
 private let units = [
-    ConversionUnit(kind: .bunsetsu(clause: "kyouhatenkiga", index: 0), text: "今日は", reading: "きょうは", range: 0..<3, line: 0),
-    ConversionUnit(kind: .bunsetsu(clause: "kyouhatenkiga", index: 1), text: "天気が", reading: "てんきが", range: 3..<6, line: 0),
+    ConversionUnit(kind: .bunsetsu(clause: "kyouhatenkiga", index: 0), text: "今日は", reading: "きょうは", range: 0..<3, line: 0, letterCount: 6),
+    ConversionUnit(kind: .bunsetsu(clause: "kyouhatenkiga", index: 1), text: "天気が", reading: "てんきが", range: 3..<6, line: 0, letterCount: 7),
     ConversionUnit(kind: .english("google"), text: "google", reading: "google", range: 7..<13, line: 0),
-    ConversionUnit(kind: .bunsetsu(clause: "sake", index: 0), text: "酒", reading: "さけ", range: 14..<15, line: 1),
+    ConversionUnit(kind: .bunsetsu(clause: "sake", index: 0), text: "酒", reading: "さけ", range: 14..<15, line: 1, letterCount: 4),
 ]
 
 private func japanese(_ texts: String...) -> [ConversionCandidate] {
@@ -58,7 +58,10 @@ private func japanese(_ texts: String...) -> [ConversionCandidate] {
         var selection = try #require(ConversionSelection(units: units, line: 0, choices: ConversionChoices()))
         selection.move(by: 1)
         let choices = selection.choices(ConversionChoices(), choosing: ConversionCandidate("天気画", .japanese))
-        #expect(choices.clauses["kyouhatenkiga"] == [Bunsetsu(reading: "きょうは", text: "今日は"), Bunsetsu(reading: "てんきが", text: "天気画")])
+        #expect(choices.clauses["kyouhatenkiga"] == [
+            Bunsetsu(reading: "きょうは", text: "今日は", letterCount: 6),
+            Bunsetsu(reading: "てんきが", text: "天気画", letterCount: 7, isChosen: true),
+        ])
     }
 
     @Test func turnsEnglishJapaneseAndBack() throws {
@@ -72,7 +75,16 @@ private func japanese(_ texts: String...) -> [ConversionCandidate] {
     @Test func givesThePhrasesOfTheSelectedClause() throws {
         var selection = try #require(ConversionSelection(units: units, line: 0, choices: ConversionChoices()))
         selection.move(by: 1)
-        #expect(selection.clausePhrases == [Bunsetsu(reading: "きょうは", text: "今日は"), Bunsetsu(reading: "てんきが", text: "天気が")])
+        #expect(selection.clausePhrases == [Bunsetsu(reading: "きょうは", text: "今日は", letterCount: 6), Bunsetsu(reading: "てんきが", text: "天気が", letterCount: 7)])
+    }
+
+    @Test func keepsWhichPhrasesTheUserChoseBefore() throws {
+        var chosenBefore = units
+        chosenBefore[0].isChosen = true
+        var selection = try #require(ConversionSelection(units: chosenBefore, line: 0, choices: ConversionChoices()))
+        selection.move(by: 1)
+        let choices = selection.choices(ConversionChoices(), choosing: ConversionCandidate("天気画", .japanese))
+        #expect(choices.clauses["kyouhatenkiga"]?.map(\.isChosen) == [true, true])
     }
 
     @Test func keepsTheSelectedPhraseWhenTheUnitsChange() throws {
@@ -96,8 +108,8 @@ private func japanese(_ texts: String...) -> [ConversionCandidate] {
 
 @Suite struct EnglishPhraseSelectionTests {
     private let units = [
-        ConversionUnit(kind: .bunsetsu(clause: "kyouhaweare", index: 0), text: "今日は", reading: "きょうは", range: 0..<3, line: 0),
-        ConversionUnit(kind: .bunsetsu(clause: "kyouhaweare", index: 1), text: "上荒れ", reading: "うぇあれ", range: 3..<6, line: 0),
+        ConversionUnit(kind: .bunsetsu(clause: "kyouhaweare", index: 0), text: "今日は", reading: "きょうは", range: 0..<3, line: 0, letterCount: 6),
+        ConversionUnit(kind: .bunsetsu(clause: "kyouhaweare", index: 1), text: "上荒れ", reading: "うぇあれ", range: 3..<6, line: 0, letterCount: 5),
     ]
 
     @Test func turnsAPhraseEnglish() throws {
@@ -105,8 +117,8 @@ private func japanese(_ texts: String...) -> [ConversionCandidate] {
         selection.move(by: 1)
         let choices = selection.choices(ConversionChoices(), choosing: ConversionCandidate("we are", .english))
         #expect(choices.clauses["kyouhaweare"] == [
-            Bunsetsu(reading: "きょうは", text: "今日は"),
-            Bunsetsu(reading: "うぇあれ", text: "we are", language: .english),
+            Bunsetsu(reading: "きょうは", text: "今日は", letterCount: 6),
+            Bunsetsu(reading: "うぇあれ", text: "we are", language: .english, letterCount: 5, isChosen: true),
         ])
     }
 

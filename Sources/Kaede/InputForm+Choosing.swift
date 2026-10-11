@@ -118,7 +118,7 @@ extension InputForm {
         else { return }
         let resized: [Bunsetsu]
         do {
-            resized = try await worker.resized(phrases, at: index, by: delta)
+            resized = try await worker.resized(phrases, of: clause, at: index, by: delta)
         } catch {
             fail("Resizing a phrase failed: \(error)")
             return

@@ -47,7 +47,7 @@ public final class AzooKeyConverter {
         guard let first = results.mainResults.first else {
             throw AzooKeyConverterError.noCandidate(romaji: romaji)
         }
-        return [Bunsetsu(reading: composing.convertTarget, text: first.text)]
+        return [Bunsetsu(reading: composing.convertTarget, text: first.text, letterCount: romaji.count)]
     }
 
     /// The candidates for a reading on its own, each reading all of it: the choices for one phrase.

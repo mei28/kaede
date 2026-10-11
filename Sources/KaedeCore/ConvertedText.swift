@@ -29,16 +29,26 @@ public struct ConversionUnit: Equatable, Sendable {
     public var typed: String
     /// The language it counts in now: a phrase turned English, or English turned Japanese.
     public var language: Language
+    /// A phrase's letters of its clause's romaji, when known (see `Bunsetsu.letterCount`).
+    public var letterCount: Int?
+    /// A phrase the user picked or moved the border of.
+    public var isChosen: Bool
 
     /// - Parameters:
     ///   - typed: by default, the clause or the English, as typed in QWERTY.
     ///   - language: by default, Japanese for a phrase and English for English.
-    public init(kind: Kind, text: String, reading: String, range: Range<Int>, line: Int, typed: String? = nil, language: Language? = nil) {
+    ///   - letterCount, isChosen: a phrase's, as its `Bunsetsu` has them.
+    public init(
+        kind: Kind, text: String, reading: String, range: Range<Int>, line: Int, typed: String? = nil, language: Language? = nil,
+        letterCount: Int? = nil, isChosen: Bool = false
+    ) {
         self.kind = kind
         self.text = text
         self.reading = reading
         self.range = range
         self.line = line
+        self.letterCount = letterCount
+        self.isChosen = isChosen
         switch kind {
         case let .bunsetsu(clause, _):
             self.typed = typed ?? clause
@@ -52,7 +62,7 @@ public struct ConversionUnit: Equatable, Sendable {
     func shifted(by offset: Int, line: Int) -> ConversionUnit {
         ConversionUnit(
             kind: kind, text: text, reading: reading, range: (range.lowerBound + offset)..<(range.upperBound + offset), line: line,
-            typed: typed, language: language
+            typed: typed, language: language, letterCount: letterCount, isChosen: isChosen
         )
     }
 }

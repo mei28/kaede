@@ -113,9 +113,10 @@ public actor ConversionWorker {
         try candidates(reading: reading).map { ConversionCandidate($0, .japanese) }
     }
 
-    /// The phrases with the border after the one at `index` moved by a character, the two changed
-    /// phrases converted again; the same phrases when the border cannot move.
-    public func resized(_ phrases: [Bunsetsu], at index: Int, by delta: Int) throws -> [Bunsetsu] {
+    /// The phrases of `clause` with the border after the one at `index` moved by a character, the
+    /// two changed phrases converted again; the same phrases when the border cannot move. The
+    /// phrase at `index` is then the user's: they set where it ends.
+    public func resized(_ phrases: [Bunsetsu], of clause: String, at index: Int, by delta: Int) throws -> [Bunsetsu] {
         guard let readings = PhraseReadings.resized(phrases.map(\.reading), at: index, by: delta) else {
             return phrases
         }
@@ -124,7 +125,12 @@ public actor ConversionWorker {
         let changed = shift < 0 ? index...index : index...(index + 1)
         return try readings.indices.map { position in
             if changed.contains(position) {
-                return Bunsetsu(reading: readings[position], text: try candidates(reading: readings[position])[0])
+                let start = readings[..<position].map(\.count).reduce(0, +)
+                let letters = azooKey.letterRange(of: clause, reading: start..<(start + readings[position].count))
+                return Bunsetsu(
+                    reading: readings[position], text: try candidates(reading: readings[position])[0],
+                    letterCount: letters?.count, isChosen: position == index
+                )
             }
             return phrases[position < index ? position : position - shift]
         }

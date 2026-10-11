@@ -121,21 +121,34 @@ private let worker = ConversionWorker(
     }
 
     @Test func convertsBothPhrasesAgainAfterMovingTheirBorder() async throws {
-        var phrases = [Bunsetsu(reading: "きょうはてんきがいい", text: "強は天気がいい")]
+        var phrases = [Bunsetsu(reading: "きょうはてんきがいい", text: "強は天気がいい", letterCount: 15)]
         for _ in 0..<6 {
-            phrases = try await worker.resized(phrases, at: 0, by: -1)
+            phrases = try await worker.resized(phrases, of: "kyouhatenkigaii", at: 0, by: -1)
         }
-        #expect(phrases == [Bunsetsu(reading: "きょうは", text: "今日は"), Bunsetsu(reading: "てんきがいい", text: "天気がいい")])
+        // The phrase whose border moved is the user's; the next only took the rest
+        #expect(phrases == [
+            Bunsetsu(reading: "きょうは", text: "今日は", letterCount: 6, isChosen: true),
+            Bunsetsu(reading: "てんきがいい", text: "天気がいい", letterCount: 9),
+        ])
+    }
+
+    @Test func countsNoLettersForAPhraseWhoseBorderSplitsASpelling() async throws {
+        // ん of "tenki" is only settled by the k after it
+        let phrases = try await worker.resized([Bunsetsu(reading: "てんき", text: "天気", letterCount: 5)], of: "tenki", at: 0, by: -1)
+        #expect(phrases.map(\.reading) == ["てん", "き"])
+        #expect(phrases.map(\.letterCount) == [nil, nil])
     }
 
     @Test func leavesPhrasesThatCannotResizeAsTheyAre() async throws {
-        let phrases = [Bunsetsu(reading: "きょうは", text: "今日は")]
-        #expect(try await worker.resized(phrases, at: 0, by: 1) == phrases)
+        let phrases = [Bunsetsu(reading: "きょうは", text: "今日は", letterCount: 6)]
+        #expect(try await worker.resized(phrases, of: "kyouha", at: 0, by: 1) == phrases)
     }
 
     @Test func convertsWithTheChoices() async throws {
         var choices = ConversionChoices()
-        choices.clauses["kyouhatenkigaii"] = [Bunsetsu(reading: "きょうは", text: "今日は"), Bunsetsu(reading: "てんきがいい", text: "天気がいい")]
+        choices.clauses["kyouhatenkigaii"] = [
+            Bunsetsu(reading: "きょうは", text: "今日は", letterCount: 6, isChosen: true), Bunsetsu(reading: "てんきがいい", text: "天気がいい", letterCount: 9),
+        ]
         #expect(try await worker.convert("kyouhatenkigaii", style: .touten, choices: choices).text == "今日は天気がいい")
     }
 }

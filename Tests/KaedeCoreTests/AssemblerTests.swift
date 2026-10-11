@@ -18,7 +18,7 @@ private func assemble(_ segments: [Segment], style: PunctuationStyle = .touten) 
             Issue.record("no conversion for \(clause)")
             return []
         }
-        return [Bunsetsu(reading: clause, text: converted)]
+        return [Bunsetsu(reading: clause, text: converted, letterCount: clause.count)]
     }.text
 }
 
@@ -79,16 +79,19 @@ private func segment(_ content: Segment.Content, space: Bool = false) -> Segment
 
 @Suite struct EnglishPhraseTests {
     private let phrases = [
-        Bunsetsu(reading: "きょうは", text: "今日は"),
-        Bunsetsu(reading: "うぇあれ", text: "we are", language: .english),
+        Bunsetsu(reading: "きょうは", text: "今日は", letterCount: 6),
+        Bunsetsu(reading: "うぇあれ", text: "we are", language: .english, letterCount: 5, isChosen: true),
     ]
 
     @Test func spacesAPhraseTurnedEnglishAsEnglish() {
         let line = Assembler.assemble([Segment(content: .romaji("kyouhaweare"), spaceBefore: false)], style: .touten, englishChoices: [:]) { _ in phrases }
         #expect(line.text == "今日は we are")
         #expect(line.units == [
-            ConversionUnit(kind: .bunsetsu(clause: "kyouhaweare", index: 0), text: "今日は", reading: "きょうは", range: 0..<3, line: 0),
-            ConversionUnit(kind: .bunsetsu(clause: "kyouhaweare", index: 1), text: "we are", reading: "うぇあれ", range: 4..<10, line: 0, language: .english),
+            ConversionUnit(kind: .bunsetsu(clause: "kyouhaweare", index: 0), text: "今日は", reading: "きょうは", range: 0..<3, line: 0, letterCount: 6),
+            ConversionUnit(
+                kind: .bunsetsu(clause: "kyouhaweare", index: 1), text: "we are", reading: "うぇあれ", range: 4..<10, line: 0, language: .english,
+                letterCount: 5, isChosen: true
+            ),
         ])
     }
 }

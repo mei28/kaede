@@ -36,7 +36,7 @@ let checkedOutDictionary = URL(filePath: #filePath)
     }
 
     @Test func givesAClauseAsOnePhraseWithItsReading() throws {
-        #expect(try converter.convert(romaji: "kyouhatenkigaii") == [Bunsetsu(reading: "きょうはてんきがいい", text: "強は天気がいい")])
+        #expect(try converter.convert(romaji: "kyouhatenkigaii") == [Bunsetsu(reading: "きょうはてんきがいい", text: "強は天気がいい", letterCount: 15)])
     }
 
     @Test func listsCandidatesForAReadingOfThatLength() throws {

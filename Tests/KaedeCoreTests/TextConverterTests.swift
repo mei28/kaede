@@ -27,7 +27,7 @@ private let kanji: [String: String] = [
                 Issue.record("asked to convert \(clause)")
                 return []
             }
-            return [Bunsetsu(reading: clause, text: converted)]
+            return [Bunsetsu(reading: clause, text: converted, letterCount: clause.count)]
         }.text
     }
 
@@ -64,9 +64,12 @@ private let kanji: [String: String] = [
         converter.convert(text, style: .touten) { clause in
             switch clause {
             case "kyouhatenkigaii":
-                [Bunsetsu(reading: "きょうは", text: "今日は"), Bunsetsu(reading: "てんきが", text: "天気が"), Bunsetsu(reading: "いい", text: "いい")]
+                [
+                    Bunsetsu(reading: "きょうは", text: "今日は", letterCount: 6), Bunsetsu(reading: "てんきが", text: "天気が", letterCount: 7),
+                    Bunsetsu(reading: "いい", text: "いい", letterCount: 2),
+                ]
             case "kyouha":
-                [Bunsetsu(reading: "きょうは", text: "今日は")]
+                [Bunsetsu(reading: "きょうは", text: "今日は", letterCount: 6)]
             default:
                 []
             }
@@ -75,15 +78,15 @@ private let kanji: [String: String] = [
 
     @Test func marksEachPhraseOfAClause() {
         #expect(convert("kyouhatenkigaii").units == [
-            ConversionUnit(kind: .bunsetsu(clause: "kyouhatenkigaii", index: 0), text: "今日は", reading: "きょうは", range: 0..<3, line: 0),
-            ConversionUnit(kind: .bunsetsu(clause: "kyouhatenkigaii", index: 1), text: "天気が", reading: "てんきが", range: 3..<6, line: 0),
-            ConversionUnit(kind: .bunsetsu(clause: "kyouhatenkigaii", index: 2), text: "いい", reading: "いい", range: 6..<8, line: 0),
+            ConversionUnit(kind: .bunsetsu(clause: "kyouhatenkigaii", index: 0), text: "今日は", reading: "きょうは", range: 0..<3, line: 0, letterCount: 6),
+            ConversionUnit(kind: .bunsetsu(clause: "kyouhatenkigaii", index: 1), text: "天気が", reading: "てんきが", range: 3..<6, line: 0, letterCount: 7),
+            ConversionUnit(kind: .bunsetsu(clause: "kyouhatenkigaii", index: 2), text: "いい", reading: "いい", range: 6..<8, line: 0, letterCount: 2),
         ])
     }
 
     @Test func marksEnglishAfterTheSpaceBeforeIt() {
         #expect(convert("kyouha google").units == [
-            ConversionUnit(kind: .bunsetsu(clause: "kyouha", index: 0), text: "今日は", reading: "きょうは", range: 0..<3, line: 0),
+            ConversionUnit(kind: .bunsetsu(clause: "kyouha", index: 0), text: "今日は", reading: "きょうは", range: 0..<3, line: 0, letterCount: 6),
             ConversionUnit(kind: .english("google"), text: "google", reading: "google", range: 4..<10, line: 0),
         ])
     }
@@ -93,6 +96,10 @@ private let kanji: [String: String] = [
         #expect(converted.text == "google\n今日は")
         #expect(converted.units.map(\.range) == [0..<6, 7..<10])
         #expect(converted.units.map(\.line) == [0, 1])
+    }
+
+    @Test func countsTheLettersOfAParticleWrittenWithoutTheConverter() {
+        #expect(convert("google no").units.last?.letterCount == 2)
     }
 
     @Test func leavesPunctuationAndDigitsOut() {
@@ -112,13 +119,14 @@ private let kanji: [String: String] = [
 
     @Test func usesThePhrasesChosenForAClause() {
         var choices = ConversionChoices()
-        choices.clauses["kyouha"] = [Bunsetsu(reading: "きょうは", text: "強は")]
+        choices.clauses["kyouha"] = [Bunsetsu(reading: "きょうは", text: "強は", letterCount: 6, isChosen: true)]
         #expect(convert("kyouha", choices).text == "強は")
+        #expect(convert("kyouha", choices).units.map(\.isChosen) == [true])
     }
 
     @Test func usesThePhrasesChosenForAParticle() {
         var choices = ConversionChoices()
-        choices.clauses["no"] = [Bunsetsu(reading: "の", text: "野")]
+        choices.clauses["no"] = [Bunsetsu(reading: "の", text: "野", letterCount: 2, isChosen: true)]
         #expect(convert("no", choices).text == "野")
     }
 

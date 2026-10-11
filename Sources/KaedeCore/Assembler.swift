@@ -111,7 +111,8 @@ private struct Part {
         text += phrase.text
         units.append(ConversionUnit(
             kind: .bunsetsu(clause: clause.romaji, index: index), text: phrase.text, reading: phrase.reading,
-            range: start..<text.utf16.count, line: 0, typed: clause.typed, language: phrase.language
+            range: start..<text.utf16.count, line: 0, typed: clause.typed, language: phrase.language,
+            letterCount: phrase.letterCount, isChosen: phrase.isChosen
         ))
     }
 
