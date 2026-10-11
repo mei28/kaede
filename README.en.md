@@ -31,6 +31,20 @@ How the text is put together:
 - Inside Japanese, `, . ? ! -` become 、。？！ー. The comma and period pair can be changed in the settings.
 - A word that starts with a capital letter stays English (`Tokyo`, `We are`).
 
+## Typing Japanese with another layout
+
+Kaede also reads Japanese typed with the fingering of a layout such as Ebi.
+The form takes keys on the Roman (QWERTY) input source, so Japanese typed in Ebi arrives as QWERTY letters (例えば as `jajsd/a`).
+Kaede reads the keys both in QWERTY and through the layout in the settings, keeping English in QWERTY and reading Japanese through the layout, even when the fingering changes in the middle of a word typed without spaces.
+
+```
+watashinoiflsgjdhfkf;a       → 私の理想的には (watashino in QWERTY, the rest in Ebi)
+pythonksbug                  → python の bug (python and bug in QWERTY English, ks as Ebi no)
+```
+
+Choose the layout in the settings: Ebi, Eucalyn, 大西 and Waddlier are built in, and a layout of your own can be written as three rows of ten characters over the QWERTY rows.
+With none chosen, Kaede reads QWERTY only.
+
 ## Fixing a conversion
 
 Press Tab to choose conversions, with the keys of an input method:
@@ -71,7 +85,7 @@ Without it, `just signing_identity=- bundle` signs ad hoc, and the permission ha
 ## Settings
 
 Open them from the leaf in the menu bar or the gear in the form.
-They hold the keys that open the form and insert its text, the font size, the Japanese comma and period, and launching at login.
+They hold the keys that open the form and insert its text, the font size, the Japanese comma and period, the layout Japanese is typed with, and launching at login.
 
 ## License
 
