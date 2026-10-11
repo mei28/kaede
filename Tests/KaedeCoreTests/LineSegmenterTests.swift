@@ -118,3 +118,28 @@ private func punctuation(_ character: Character, _ language: Language) -> Segmen
         #expect(segments("今日は google") == [Segment(content: .japaneseText("今日は"), spaceBefore: false), english("google", space: true)])
     }
 }
+
+/// What the segmenter makes of typed text with dots, hyphens, slashes and marks today, kept while
+/// the tokenizer changes underneath.
+@Suite struct LineSegmenterCharacterizationTests {
+    let segmenter = LineSegmenter(lexicon: lexicon)
+
+    @Test(arguments: [
+        ("main.swift", "en(main.swift)"),
+        ("node.js", "en(node.js)"),
+        ("desu.kyouha", "ja(desu) 。 ja(kyouha)"),
+        ("3-4", "en(3-4)"),
+        ("kore;", "ja(kore) mark(;)"),
+        ("\"quote\":", "mark(\") en(quote) mark(\") mark(:)"),
+        ("1,000yen", "ja(1,000yen)"),
+        ("e-mail", "en(e-mail)"),
+        ("src/kaede", "en(src/kaede)"),
+        ("x64,arm64", "en(x) num(64) , en(arm) num(64)"),
+        ("kore,sore.", "ja(kore) 、 ja(sore) 。"),
+        ("Hello.World", "en(Hello.World)"),
+        ("hai, iie", "ja(hai) 、 ja(iie)"),
+    ])
+    func keepsWhatItMakesOfTypedText(typed: String, expected: String) {
+        #expect(SegmentNotation.notation(of: segmenter.segments(of: typed[...])) == expected)
+    }
+}
