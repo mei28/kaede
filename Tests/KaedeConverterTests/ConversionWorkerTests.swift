@@ -62,8 +62,31 @@ private let worker = ConversionWorker(
 }
 
 @Suite struct ConversionWorkerChoosingTests {
-    private func unit(_ kind: ConversionUnit.Kind, reading: String) -> ConversionUnit {
-        ConversionUnit(kind: kind, text: "", reading: reading, range: 0..<0, line: 0)
+    private func unit(_ kind: ConversionUnit.Kind, reading: String, typed: String? = nil) -> ConversionUnit {
+        ConversionUnit(kind: kind, text: "", reading: reading, range: 0..<0, line: 0, typed: typed)
+    }
+
+    @Test func offersAPhraseReadThroughTheLayoutAsTypedInQwertyToo() async throws {
+        // has, read in Ebi as かお
+        let candidates = try await worker.candidates(
+            for: unit(.bunsetsu(clause: "kao", index: 0), reading: "かお", typed: "has"), readingInClause: 0..<2, layout: .ebi
+        )
+        #expect(candidates.contains(ConversionCandidate("顔", .japanese)))
+        #expect(candidates.last == ConversionCandidate("has", .english))
+    }
+
+    @Test func offersAQwertyPhraseAsTheLayoutReadsIt() async throws {
+        // haia read in QWERTY as はいあ, which Ebi reads as kara
+        let candidates = try await worker.candidates(
+            for: unit(.bunsetsu(clause: "haia", index: 0), reading: "はいあ", typed: "haia"), readingInClause: 0..<3, layout: .ebi
+        )
+        #expect(candidates.contains(ConversionCandidate("から", .japanese)))
+    }
+
+    @Test func offersEnglishReadThroughTheLayoutAsTyped() async throws {
+        let candidates = try await worker.candidates(for: unit(.english("world"), reading: "world", typed: "usiwm"), readingInClause: nil, layout: .ebi)
+        #expect(candidates.first == ConversionCandidate("world", .english))
+        #expect(candidates.contains(ConversionCandidate("usiwm", .english)))
     }
 
     @Test func listsThePhrasesCandidates() async throws {

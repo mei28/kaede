@@ -132,7 +132,7 @@ extension InputForm {
     private func showCandidates() async {
         guard let unit = selection?.selectedUnit else { return }
         do {
-            let candidates = try await worker.candidates(for: unit, readingInClause: selection?.selectedPhraseReadingRange)
+            let candidates = try await worker.candidates(for: unit, readingInClause: selection?.selectedPhraseReadingRange, layout: layout)
             // Still the same unit: steps run one at a time
             selection?.show(candidates: candidates)
         } catch {

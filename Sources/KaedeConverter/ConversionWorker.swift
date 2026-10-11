@@ -9,6 +9,7 @@ public actor ConversionWorker {
     private let dictionaryDirectory: URL
     private let memoryDirectory: URL
     private let converter: TextConverter
+    private let lexicon: EnglishLexicon
     private let wordCover: WordCover
     /// Made on first use: it loads the whole dictionary, about a second.
     private lazy var azooKey = AzooKeyConverter(dictionaryDirectory: dictionaryDirectory, memoryDirectory: memoryDirectory)
@@ -19,6 +20,7 @@ public actor ConversionWorker {
         self.dictionaryDirectory = dictionaryDirectory
         self.memoryDirectory = memoryDirectory
         converter = TextConverter(lexicon: lexicon)
+        self.lexicon = lexicon
         wordCover = WordCover(lexicon: lexicon)
     }
 
@@ -50,36 +52,61 @@ public actor ConversionWorker {
         return converted
     }
 
-    /// What a unit can become: a phrase's candidates for its reading, then the letters it came
-    /// from as English (weare, we are); English as typed, then, when it reads as romaji, its
-    /// Japanese candidates (sake → 酒).
-    /// - Parameter readingInClause: where a phrase's reading sits in its clause's reading.
-    public func candidates(for unit: ConversionUnit, readingInClause: Range<Int>?) throws -> [ConversionCandidate] {
+    /// What a unit can become.
+    /// - A phrase: its reading's candidates; then, for its keys read the other way (as typed in
+    ///   QWERTY, or through the layout) when that reads as other romaji, those candidates; then
+    ///   its keys as English, last, so ↑ from the first candidate reaches them as in azooKey
+    ///   (weare, we are).
+    /// - English: as it shows, its keys as typed, the Japanese of whichever reading is romaji
+    ///   (sake → 酒, has typed in Ebi → 顔), and the word the layout reads.
+    /// - Parameters:
+    ///   - readingInClause: where a phrase's reading sits in its clause's reading.
+    ///   - layout: the layout the user types Japanese with.
+    public func candidates(for unit: ConversionUnit, readingInClause: Range<Int>?, layout: KeyboardLayout = .qwerty) throws -> [ConversionCandidate] {
+        var candidates: [ConversionCandidate]
         switch unit.kind {
         case let .bunsetsu(clause, _):
-            var candidates = try japaneseCandidates(reading: unit.reading)
-            if let readingInClause, let letters = azooKey.romaji(of: clause, reading: readingInClause) {
-                // Last, so that ↑ from the first candidate reaches them, as in azooKey
-                candidates += englishForms(of: letters)
+            candidates = try japaneseCandidates(reading: unit.reading)
+            guard let readingInClause, let range = azooKey.letterRange(of: clause, reading: readingInClause) else {
+                return candidates
             }
-            return candidates
-        case let .english(typed):
-            guard RomajiParser.isPlainRomaji(typed) else {
-                return [ConversionCandidate(typed, .english)]
+            let letters = String(Array(clause)[range])
+            let keys = String(Array(unit.typed)[range])
+            for other in [keys, layout.read(keys)] where other != letters && RomajiParser.isPlainRomaji(other) {
+                candidates += try japaneseCandidates(reading: kana(of: other))
             }
-            let reading = try kanji(for: typed).map(\.reading).joined()
-            return try [ConversionCandidate(typed, .english)] + japaneseCandidates(reading: reading)
+            candidates += englishForms(of: keys, layout: layout)
+        case let .english(shown):
+            candidates = [ConversionCandidate(shown, .english), ConversionCandidate(unit.typed, .english)]
+            for reading in [unit.typed, layout.read(unit.typed)] where RomajiParser.isPlainRomaji(reading) {
+                candidates += try japaneseCandidates(reading: kana(of: reading))
+            }
+            if lexicon.contains(layout.read(unit.typed)) {
+                candidates.append(ConversionCandidate(layout.read(unit.typed), .english))
+            }
+        }
+        return candidates.reduce(into: []) { unique, candidate in
+            if !unique.contains(candidate) {
+                unique.append(candidate)
+            }
         }
     }
 
-    /// The letters as typed, then split into English words when they make more than one: the
-    /// words come last, where ↑ from the first candidate lands.
-    private func englishForms(of letters: String) -> [ConversionCandidate] {
-        var forms = [letters]
-        if let words = wordCover.englishWords(letters), words.count > 1 {
+    /// The keys as typed, the word the layout reads them as, then split into English words when
+    /// they make more than one: the words come last, where ↑ from the first candidate lands.
+    private func englishForms(of keys: String, layout: KeyboardLayout) -> [ConversionCandidate] {
+        var forms = [keys]
+        if lexicon.contains(layout.read(keys)) {
+            forms.append(layout.read(keys))
+        }
+        if let words = wordCover.englishWords(keys), words.count > 1 {
             forms.append(words.joined(separator: " "))
         }
         return forms.map { ConversionCandidate($0, .english) }
+    }
+
+    private func kana(of romaji: String) throws -> String {
+        try kanji(for: romaji).map(\.reading).joined()
     }
 
     private func japaneseCandidates(reading: String) throws -> [ConversionCandidate] {

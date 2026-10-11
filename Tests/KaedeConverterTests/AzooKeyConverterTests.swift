@@ -51,14 +51,14 @@ let checkedOutDictionary = URL(filePath: #filePath)
     }
 
     @Test func findsTheLettersAPhraseCameFrom() {
-        #expect(converter.romaji(of: "kyouhaweare", reading: 4..<8) == "weare")
-        #expect(converter.romaji(of: "kyouhaweare", reading: 0..<4) == "kyouha")
-        #expect(converter.romaji(of: "ra-men", reading: 0..<4) == "ra-men")
+        #expect(converter.letterRange(of: "kyouhaweare", reading: 4..<8) == 6..<11)
+        #expect(converter.letterRange(of: "kyouhaweare", reading: 0..<4) == 0..<6)
+        #expect(converter.letterRange(of: "ra-men", reading: 0..<4) == 0..<6)
     }
 
     @Test func findsNoLettersForAReadingThatSplitsASpelling() {
         // ん of "tenki" is only settled by the k after it
-        #expect(converter.romaji(of: "tenki", reading: 0..<2) == nil)
+        #expect(converter.letterRange(of: "tenki", reading: 0..<2) == nil)
     }
 
     @Test func keepsDigitsHalfWidth() throws {
