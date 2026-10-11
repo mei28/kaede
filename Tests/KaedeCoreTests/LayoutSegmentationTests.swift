@@ -53,3 +53,27 @@ private func notation(_ typed: String, _ layout: KeyboardLayout = .ebi) -> Strin
         #expect(notation("kaisha") == "ja(kaisha)")
     }
 }
+
+@Suite struct LayoutBesideEnglishTests {
+    @Test(arguments: [
+        // A particle or verb ending typed with the layout right after English
+        ("pythonksbug", "en(python) ja(L:no) en(bug)"),
+        ("githubkfpushlfja", "en(github) ja(L:ni) en(push) ja(L:sita)"),
+        ("waysks;dkhakmdlg", "en(ways) ja(L:nohenkandesu)"),
+        ("spamdake", "en(spam) ja(dake)"),
+    ])
+    func readsQwertyEnglishBesideLayoutRomaji(typed: String, expected: String) {
+        #expect(notation(typed) == expected)
+    }
+
+    @Test(arguments: [
+        // Short stretches the layout happens to read as romaji do not cut English apart
+        ("postgres", "en(postgres)"),
+        ("json", "en(json)"),
+        ("kaggle", "en(kaggle)"),
+        ("naiinterface", "ja(nai) en(interface)"),
+    ])
+    func keepsEnglishWhole(typed: String, expected: String) {
+        #expect(notation(typed) == expected)
+    }
+}

@@ -111,8 +111,7 @@ struct KeyRunCover {
         if switching, state.syllables < 3 {
             return []
         }
-        // Romaji typed with the layout stays clear of English
-        if fingering == .layout, state.last == .english {
+        if !continuing, !state.layoutRomajiMayEnd(beforeEnglish: false) {
             return []
         }
         let reading = keys.reading(fingering)
@@ -131,8 +130,13 @@ struct KeyRunCover {
             }
             var next = continuing ? state : State()
             next.afterSwitch = continuing ? state.afterSwitch : switching
+            if !continuing {
+                next.afterEnglish = state.last == .english
+            }
             next.last = .romaji(fingering)
             next.syllables = min((continuing ? state.syllables : 0) + 1, 3)
+            // Kept while a layout piece is too short to stand beside English on its own
+            next.shortText = fingering == .layout && next.syllables < 2 ? (continuing ? state.shortText ?? "" : "") + String(reading[position..<end]) : nil
             let isSokuon = end == position + 1 && !"aiueon".contains(reading[position])
             next.sokuon = isSokuon ? fingering : nil
             return Move(end: end, state: next, cost: cost, piece: .syllable(fingering))
@@ -140,20 +144,21 @@ struct KeyRunCover {
     }
 
     private func wordMoves(from state: State, at position: Int, keys: Keys) -> [Move] {
-        guard state.sokuon == nil, state.last != .qwertyPeriod, state.last != .romaji(.layout), state.romajiMayEnd else { return [] }
+        guard state.sokuon == nil, state.last != .qwertyPeriod, state.romajiMayEnd, state.layoutRomajiMayEnd(beforeEnglish: true) else { return [] }
         var moves: [Move] = []
         for end in (position + 1)...min(keys.count, position + Self.longestWord) {
             let word = String(keys.typed[position..<end])
             guard word.allSatisfy(\.isLetter), let rank = lexicon.rank(of: word) else { continue }
             let readsAsRomaji = RomajiParser.isPlainRomaji(word)
+            let readsAsLayoutRomaji = RomajiParser.isPlainRomaji(layout.read(word))
             let wordsBefore = state.last == .english ? state.englishWords : 0
             var cost = Cost()
             cost.englishLetters = word.count
             cost.english = log(Double(rank) * logWordCount)
             if state.last != .english {
                 cost.pieces = 1
-                // A readable word touching romaji: Japanese keeps the letters at a border
-                if state.last == .romaji(.qwerty), readsAsRomaji {
+                // A word that reads as the romaji it touches: Japanese keeps the letters at a border
+                if state.last == .romaji(.qwerty) && readsAsRomaji || state.last == .romaji(.layout) && readsAsLayoutRomaji {
                     cost.violations += 1
                 }
             }
@@ -164,6 +169,7 @@ struct KeyRunCover {
             next.last = .english
             next.englishWords = min(wordsBefore + 1, 2)
             next.lastWordReadsAsRomaji = readsAsRomaji
+            next.lastWordReadsAsLayoutRomaji = readsAsLayoutRomaji
             next.lastWordIsAOrI = ["a", "i"].contains(word.lowercased())
             moves.append(Move(end: end, state: next, cost: cost, piece: .word))
         }
@@ -172,7 +178,9 @@ struct KeyRunCover {
 
     private func punctuationMoves(from state: State, at position: Int, keys: Keys) -> [Move] {
         let key = keys.typed[position]
-        guard ",.".contains(key), state.sokuon == nil, state.last != .qwertyPeriod, state.romajiMayEnd else { return [] }
+        guard ",.".contains(key), state.sokuon == nil, state.last != .qwertyPeriod, state.romajiMayEnd,
+              state.layoutRomajiMayEnd(beforeEnglish: false)
+        else { return [] }
         var cost = Cost()
         cost.marks = 1
         cost.violations = state.violationsEndingEnglish() + (state.last == .start ? 1 : 0)
@@ -189,7 +197,7 @@ struct KeyRunCover {
 
     /// The cost of ending the run in `state`, or nil when it cannot end there.
     private func finishing(_ state: State) -> Cost? {
-        guard state.sokuon == nil, state.last != .qwertyPeriod, state.romajiMayEnd else { return nil }
+        guard state.sokuon == nil, state.last != .qwertyPeriod, state.romajiMayEnd, state.layoutRomajiMayEnd(beforeEnglish: false) else { return nil }
         var cost = Cost()
         cost.violations = state.violationsEndingEnglish()
         return cost
@@ -253,17 +261,23 @@ struct KeyRunCover {
         var syllables = 0
         /// The current romaji piece came right after romaji in the other fingering.
         var afterSwitch = false
+        /// The current romaji piece came right after English.
+        var afterEnglish = false
+        /// The current piece in the layout while under two syllables, as read.
+        var shortText: String?
         /// A sokuon waiting for a syllable read the same way.
         var sokuon: Fingering?
         var englishWords = 0
         var lastWordReadsAsRomaji = false
+        var lastWordReadsAsLayoutRomaji = false
         var lastWordIsAOrI = false
 
         /// Romaji starting right after English: a readable word at the border, or English ending
         /// in a or i.
         func violationsTouching(romajiIn fingering: Fingering) -> Int {
             guard last == .english else { return 0 }
-            return (fingering == .qwerty && lastWordReadsAsRomaji ? 1 : 0) + (lastWordIsAOrI ? 1 : 0)
+            let readable = fingering == .qwerty ? lastWordReadsAsRomaji : lastWordReadsAsLayoutRomaji
+            return (readable ? 1 : 0) + (lastWordIsAOrI ? 1 : 0)
         }
 
         func violationsEndingEnglish() -> Int {
@@ -273,6 +287,15 @@ struct KeyRunCover {
         /// Romaji that changed fingering ends only after three syllables, like the stretch before it.
         var romajiMayEnd: Bool {
             !(afterSwitch && syllables < 3)
+        }
+
+        /// A piece of one syllable in the layout touches English only as a particle or verb
+        /// ending right after it (python | の | bug): one syllable the layout reads by chance
+        /// would otherwise cut English apart (post | う | res).
+        func layoutRomajiMayEnd(beforeEnglish: Bool) -> Bool {
+            guard last == .romaji(.layout), let shortText else { return true }
+            guard afterEnglish || beforeEnglish else { return true }
+            return afterEnglish && FunctionWords.all.contains(shortText)
         }
     }
 
