@@ -56,10 +56,14 @@ Press Tab to choose conversions, with the keys of an input method:
 | ↓ ↑, Space | Step through the candidates |
 | 1–9 | Pick a numbered candidate and move on |
 | Return, Tab | Keep the choices and go back to writing |
-| Escape, Backspace | Cancel the choices made since Tab |
+| Escape | Cancel the choices made since Tab |
+| Any other key | Keep the choices, go back to writing and type the key (Backspace deletes) |
 
 To turn a part Kaede made Japanese back into English, press ↑ right after Tab.
 The candidate list ends with the typed letters split into English words (we are for `weare`).
+
+A fixed phrase stays fixed when letters are deleted or typed later.
+The letters that changed and the phrases left as they were are converted again (fix 今日は in `kyouhatenkigaii`, type desune, and it reads 今日は天気がいいですね).
 
 ## Requirements
 
@@ -68,6 +72,7 @@ The candidate list ends with the typed letters split into English words (we are 
 - Accessibility permission, to type into other apps
 
 When the form opens and the input source is not the Roman one, Kaede taps the left Command key.
+It does the same when another source is selected while the form is open, since the form reads the keys as they are typed.
 It relies on the author's Hammerspoon setup: a lone left Command selects Roman, and a lone right Command selects azooKey.
 
 ## Building
