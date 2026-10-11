@@ -151,4 +151,14 @@ private let worker = ConversionWorker(
         ]
         #expect(try await worker.convert("kyouhatenkigaii", style: .touten, choices: choices).text == "今日は天気がいい")
     }
+
+    @Test func keepsAChosenPhraseWhenLettersAreAdded() async throws {
+        var choices = ConversionChoices()
+        choices.clauses["kyouhatenkigaii"] = [
+            Bunsetsu(reading: "きょうは", text: "今日は", letterCount: 6, isChosen: true), Bunsetsu(reading: "てんきがいい", text: "天気がいい", letterCount: 9),
+        ]
+        // Typed afresh azooKey writes 強は again
+        #expect(try await worker.convert("kyouhatenkigaiidesune", style: .touten).text == "強は天気がいいですね")
+        #expect(try await worker.convert("kyouhatenkigaiidesune", style: .touten, choices: choices).text == "今日は天気がいいですね")
+    }
 }

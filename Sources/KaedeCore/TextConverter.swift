@@ -8,7 +8,8 @@ public struct TextConverter: Sendable {
 
     /// - Parameters:
     ///   - layout: the layout the user types Japanese with.
-    ///   - choices: conversions the user chose, used in place of `kanji`.
+    ///   - choices: conversions the user chose, used in place of `kanji`; a clause typed
+    ///     differently keeps the phrases chosen in it (`CarriedChoice`).
     ///   - kanji: converts a clause of romaji (with digits) into Japanese phrases.
     public func convert(
         _ text: String, style: PunctuationStyle, layout: KeyboardLayout = .qwerty, choices: ConversionChoices = ConversionChoices(),
@@ -39,12 +40,20 @@ public struct TextConverter: Sendable {
             if let chosen = choices.clauses[clause] {
                 return chosen
             }
-            // On its own a particle or verb ending has no sentence to choose its kanji by (の would
-            // be 野, した 下)
-            if let kana = FunctionWords.kana(of: clause) {
-                return [Bunsetsu(reading: kana, text: kana, letterCount: clause.count)]
+            let carried = try CarriedChoice.phrases(for: clause, from: choices.clauses) { letters in
+                try Self.fresh(letters, kanji: kanji)
             }
-            return try kanji(clause)
+            return try carried ?? Self.fresh(clause, kanji: kanji)
         }
+    }
+
+    /// Converts letters nothing was chosen for.
+    private static func fresh(_ letters: String, kanji: (String) throws -> [Bunsetsu]) rethrows -> [Bunsetsu] {
+        // On its own a particle or verb ending has no sentence to choose its kanji by (の would be
+        // 野, した 下)
+        if let kana = FunctionWords.kana(of: letters) {
+            return [Bunsetsu(reading: kana, text: kana, letterCount: letters.count)]
+        }
+        return try kanji(letters)
     }
 }
