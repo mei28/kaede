@@ -110,3 +110,15 @@ private func notation(_ typed: String, _ layout: KeyboardLayout = .ebi) -> Strin
         #expect(notation(typed) == expected)
     }
 }
+
+@Suite struct LayoutEnglishTests {
+    @Test func readsEnglishTypedWithTheLayoutsFingering() {
+        // world typed in Ebi; nothing else reads the keys
+        #expect(notation("usiwm") == "en/L(world)")
+        #expect(notation("hello usiwm") == "en(hello) en/L(world)")
+    }
+
+    @Test func keepsUnknownEnglishAsTyped() {
+        #expect(notation("kubernetes") == "en(kubernetes)")
+    }
+}

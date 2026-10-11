@@ -66,7 +66,12 @@ public struct LineSegmenter: Sendable {
             return KeyRun.qwertyTokens(run).flatMap(kinds(of:))
         }
         guard let pieces = KeyRunCover(lexicon: lexicon, layout: layout).cover(run), pieces.contains(where: \.readsThroughLayout) else {
-            return KeyRun.qwertyTokens(run).flatMap(kinds(of:))
+            let qwerty = KeyRun.qwertyTokens(run).flatMap(kinds(of:))
+            // Letters left as unknown English that the layout reads as a word: world typed as usiwm
+            if qwerty == [.english(qwerty: [run])], !lexicon.contains(run), lexicon.contains(layout.read(run)) {
+                return [.english(words: [layout.read(run)], typed: run, fingering: .layout)]
+            }
+            return qwerty
         }
         // Read wholly through the layout, yet QWERTY English spells it too
         if pieces.allSatisfy(\.readsThroughLayout), !RomajiParser.isPlainRomaji(run), let words = wordCover.englishWords(run) {
