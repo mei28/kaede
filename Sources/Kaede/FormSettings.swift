@@ -9,11 +9,13 @@ enum FormSettings {
     static let defaultFontSize = 15.0
     static let fontSizes = 12.0...28.0
     static let punctuation = "formPunctuation"
+    /// Three rows over the QWERTY keys; QWERTY's own rows mean no layout of the user's.
+    static let layout = "formLayout"
 
     static func registerDefaults() {
         UserDefaults.standard.register(defaults: [
             openKey: FormKeys.defaultOpen, insertKey: FormKeys.defaultInsert, fontSize: defaultFontSize,
-            punctuation: PunctuationStyle.touten.rawValue,
+            punctuation: PunctuationStyle.touten.rawValue, layout: KeyboardLayout.ebi.rows,
         ])
     }
 
@@ -59,5 +61,21 @@ enum FormSettings {
 
     static func save(punctuation style: PunctuationStyle) {
         UserDefaults.standard.set(style.rawValue, forKey: punctuation)
+    }
+
+    /// Stops Kaede when the rows make no layout, as hand-written defaults could.
+    static func loadLayout() -> KeyboardLayout {
+        guard let rows = UserDefaults.standard.stringArray(forKey: layout) else {
+            preconditionFailure("the registered layout is an array of strings")
+        }
+        do {
+            return try KeyboardLayout(rows: rows)
+        } catch {
+            terminate("The layout in the settings (\(layout) = \(rows)) cannot be used: \(error). Change it with `just layout`.")
+        }
+    }
+
+    static func save(layout keyboardLayout: KeyboardLayout) {
+        UserDefaults.standard.set(keyboardLayout.rows, forKey: layout)
     }
 }

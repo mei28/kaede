@@ -55,6 +55,21 @@ form-key which combo:
     defaults write com.mei28.kaede {{ if which == "open" { "formOpenKey" } else { "formInsertKey" } }} -string "{{combo}}"
     @echo "just restart で反映されます"
 
+# 日本語を打つ配列を変える（name: none、ebi、eucalyn、oonishi、waddlier。表は dotfiles と同じ。反映は just restart）
+layout name:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{name}}" in
+        none) rows=("qwertyuiop" "asdfghjkl;" "zxcvbnm,./") ;;
+        ebi) rows=("ql,.;fwryp" "aoeiuktnsh" "zxcv/gdmjb") ;;
+        eucalyn) rows=("qw,.;mrdyp" "aoeiugtksn" "zxcvfbhjl/") ;;
+        oonishi) rows=("qlu,.fwryp" "aoei/ktnsh" "zxcv;gdmjb") ;;
+        waddlier) rows=("qle,.fwryp" "aoiu;ktnsh" "zxcvbgdmj/") ;;
+        *) echo "name は none、ebi、eucalyn、oonishi、waddlier のどれか"; exit 1 ;;
+    esac
+    defaults write com.mei28.kaede formLayout -array "${rows[@]}"
+    echo "just restart で反映されます"
+
 # 作り直さずに Kaede を起動し直す（許可は外れない）
 restart:
     pkill -x Kaede || true

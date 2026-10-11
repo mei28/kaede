@@ -18,6 +18,10 @@ final class SettingsModel: ObservableObject {
     @Published var keyMessage: String?
     @Published var fontSize: Double
     @Published private(set) var punctuation: PunctuationStyle
+    @Published private(set) var layout: KeyboardLayout
+    /// The rows as the user edits them, before they are used.
+    @Published var layoutRows: [String]
+    @Published var layoutMessage: String?
     @Published private(set) var launchesAtLogin: Bool
     @Published var loginMessage: String?
 
@@ -27,10 +31,12 @@ final class SettingsModel: ObservableObject {
     private let hotKey: HotKey
     private var recorder: Any?
 
-    init(keys: FormKeys, fontSize: Double, punctuation: PunctuationStyle, form: InputForm, hotKey: HotKey) {
+    init(keys: FormKeys, fontSize: Double, punctuation: PunctuationStyle, layout: KeyboardLayout, form: InputForm, hotKey: HotKey) {
         self.keys = keys
         self.fontSize = fontSize
         self.punctuation = punctuation
+        self.layout = layout
+        layoutRows = layout.rows
         self.form = form
         self.hotKey = hotKey
         launchesAtLogin = SMAppService.mainApp.status == .enabled
@@ -129,6 +135,55 @@ final class SettingsModel: ObservableObject {
         form.apply(style: style)
     }
 
+    // MARK: Layout
+
+    /// The choices of the layout picker: none, a preset by name, or rows of the user's own.
+    static let noLayout = "なし（QWERTY だけ）"
+    static let ownLayout = "自分で書く"
+
+    var layoutChoice: String {
+        if layout.isQwerty { return Self.noLayout }
+        return KeyboardLayout.presets.first { $0.layout == layout }?.name ?? Self.ownLayout
+    }
+
+    func chooseLayout(_ choice: String) {
+        if choice == Self.noLayout {
+            use(.qwerty)
+        } else if let preset = KeyboardLayout.presets.first(where: { $0.name == choice }) {
+            use(preset.layout)
+        }
+        // For rows of one's own, the rows are edited and used with the button
+    }
+
+    /// Uses the edited rows, or says what is wrong with them.
+    func useLayoutRows() {
+        do {
+            use(try KeyboardLayout(rows: layoutRows))
+        } catch {
+            layoutMessage = Self.message(for: error)
+        }
+    }
+
+    private func use(_ chosen: KeyboardLayout) {
+        layout = chosen
+        layoutRows = chosen.rows
+        layoutMessage = nil
+        FormSettings.save(layout: chosen)
+        form.apply(layout: chosen)
+    }
+
+    /// The QWERTY rows the layout's rows sit over, as their labels.
+    static let qwertyRows = KeyboardLayout.qwerty.rows
+
+    private static func message(for error: KeyboardLayoutError) -> String {
+        switch error {
+        case .rowCount: "配列は 3 行で書いてください。"
+        case let .rowLength(row, length): "\(row) 行目が \(length) 文字です。10 文字にしてください。"
+        case let .notAKey(character, row): "\(row) 行目の「\(character)」は使えません。英字の小文字と , . ; / だけで書いてください。"
+        case let .repeated(character): "「\(character)」が 2 回あります。30 文字を 1 回ずつ使ってください。"
+        }
+    }
+
     // MARK: Login
 
     func setLaunchesAtLogin(_ launches: Bool) {
@@ -179,6 +234,28 @@ struct SettingsView: View {
                         Text(style.rawValue).tag(style)
                     }
                 }
+            }
+            Section("配列") {
+                Picker("日本語を打つ配列", selection: Binding(get: { model.layoutChoice }, set: { model.chooseLayout($0) })) {
+                    Text(SettingsModel.noLayout).tag(SettingsModel.noLayout)
+                    ForEach(KeyboardLayout.presets, id: \.name) { preset in
+                        Text(preset.name).tag(preset.name)
+                    }
+                    Text(SettingsModel.ownLayout).tag(SettingsModel.ownLayout)
+                }
+                ForEach(Array(SettingsModel.qwertyRows.enumerated()), id: \.offset) { index, qwerty in
+                    LabeledContent(qwerty) {
+                        TextField("", text: $model.layoutRows[index])
+                            .font(.system(.body, design: .monospaced))
+                            .onSubmit { model.useLayoutRows() }
+                    }
+                }
+                Button("この配列を使う") { model.useLayoutRows() }
+                if let message = model.layoutMessage {
+                    Text(message).font(.callout).foregroundStyle(.red)
+                }
+                Text("QWERTY の各キーの位置に来る文字を書きます。英語は QWERTY のまま、日本語はこの配列の指使いで打っても読み分けます。")
+                    .font(.callout).foregroundStyle(.secondary)
             }
             Section("起動") {
                 Toggle("ログイン時に起動", isOn: Binding(get: { model.launchesAtLogin }, set: { model.setLaunchesAtLogin($0) }))
