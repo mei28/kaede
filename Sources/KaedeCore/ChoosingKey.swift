@@ -20,7 +20,8 @@ public enum ChoosingKey {
     ///   - modifiers: only command, control, option and shift count; the function and keypad
     ///     marks macOS puts on arrow keys do not.
     ///   - characters: what the key types without modifiers, for the numbers.
-    /// - Returns: nil for any other key, which ends choosing and goes on to the text.
+    /// - Returns: nil for any other key, which ends choosing and goes on to the text: Backspace
+    ///   deletes there, and the phrases chosen in a clause outlast the letters it takes.
     public static func action(keyCode: UInt16, modifiers: KeyCombo.Modifiers, characters: String) -> ChoosingAction? {
         guard modifiers.subtracting(.shift).isEmpty else { return nil }
         let shift = modifiers.contains(.shift)
@@ -32,8 +33,7 @@ public enum ChoosingKey {
         case 49: return .step(shift ? -1 : 1)
         // Return, Enter, Tab
         case 36, 76, 48: return .keep
-        // Escape, and Backspace: a key that would delete text cancels instead
-        case 53, 51: return .cancel
+        case 53: return .cancel
         default:
             guard !shift, let number = Int(characters), (1...9).contains(number) else { return nil }
             return .pick(number)

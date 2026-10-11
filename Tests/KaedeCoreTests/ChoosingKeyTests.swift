@@ -34,13 +34,14 @@ import Testing
         #expect(action(48) == .keep)
     }
 
-    @Test func cancelsWithEscapeAndBackspace() {
+    @Test func cancelsWithEscape() {
         #expect(action(53) == .cancel)
-        #expect(action(51) == .cancel)
     }
 
     @Test func leavesOtherKeysToTheText() {
         #expect(action(0, [], "a") == nil)
+        // Backspace deletes as it does while writing; the choices stay
+        #expect(action(51) == nil)
         #expect(action(123, .command) == nil)
         #expect(action(8, .command, "c") == nil)
     }

@@ -3,7 +3,7 @@ import KaedeCore
 
 /// Choosing conversions in the form with Tab, with the keys of an input method: ← → move between
 /// phrases and English, Shift+← → move a phrase's border, ↑ ↓ and Space step through candidates,
-/// 1–9 pick one and go on, Return or Tab keep what was chosen, Escape or Backspace cancel it.
+/// 1–9 pick one and go on, Return or Tab keep what was chosen, Escape cancels it.
 extension InputForm {
     /// Tab: selects the first unit of the caret's line, once the preview has caught up.
     func beginChoosing() {
