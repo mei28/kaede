@@ -99,6 +99,7 @@ struct KeyRunCover {
             + syllableMoves(.layout, from: state, at: position, keys: keys)
             + wordMoves(from: state, at: position, keys: keys)
             + punctuationMoves(from: state, at: position, keys: keys)
+            + layoutPunctuationMoves(from: state, at: position, keys: keys)
     }
 
     private func syllableMoves(_ fingering: Fingering, from state: State, at position: Int, keys: Keys) -> [Move] {
@@ -106,9 +107,11 @@ struct KeyRunCover {
             return []
         }
         let continuing = state.last == .romaji(fingering)
-        // Japanese changes fingering only between stretches of three syllables or more
-        let switching = !continuing && state.last.isRomaji
-        if switching, state.syllables < 3 {
+        // Japanese changes fingering only between stretches of three syllables or more, also
+        // across the layout's punctuation
+        let acrossPunctuation = state.last.isLayoutPunctuation && fingering == .qwerty
+        let switching = !continuing && state.last.isRomaji || acrossPunctuation
+        if switching, (acrossPunctuation ? state.syllablesBeforePunctuation : state.syllables) < 3 {
             return []
         }
         if !continuing, !state.layoutRomajiMayEnd(beforeEnglish: false) {
@@ -144,7 +147,7 @@ struct KeyRunCover {
     }
 
     private func wordMoves(from state: State, at position: Int, keys: Keys) -> [Move] {
-        guard state.sokuon == nil, state.last != .qwertyPeriod, state.romajiMayEnd, state.layoutRomajiMayEnd(beforeEnglish: true) else { return [] }
+        guard state.sokuon == nil, state.last != .qwertyPeriod, !state.last.isLayoutPunctuation, state.romajiMayEnd, state.layoutRomajiMayEnd(beforeEnglish: true) else { return [] }
         var moves: [Move] = []
         for end in (position + 1)...min(keys.count, position + Self.longestWord) {
             let word = String(keys.typed[position..<end])
@@ -178,7 +181,7 @@ struct KeyRunCover {
 
     private func punctuationMoves(from state: State, at position: Int, keys: Keys) -> [Move] {
         let key = keys.typed[position]
-        guard ",.".contains(key), state.sokuon == nil, state.last != .qwertyPeriod, state.romajiMayEnd,
+        guard ",.".contains(key), state.sokuon == nil, state.last != .qwertyPeriod, !state.last.isLayoutPunctuation, state.romajiMayEnd,
               state.layoutRomajiMayEnd(beforeEnglish: false)
         else { return [] }
         var cost = Cost()
@@ -195,9 +198,28 @@ struct KeyRunCover {
         return [Move(end: position + 1, state: next, cost: cost, piece: .punctuation(.qwerty))]
     }
 
+    /// The layout's 、。？ (Ebi's e, r and Shift+B) after two syllables or more of romaji in the
+    /// layout; only romaji follows it. Elsewhere those keys are letters: coffee is not cyii、e.
+    private func layoutPunctuationMoves(from state: State, at position: Int, keys: Keys) -> [Move] {
+        let read = keys.layoutReading[position]
+        guard keys.typed[position].isLetter, ",.?".contains(read), state.last == .romaji(.layout), state.syllables >= 2,
+              state.sokuon == nil, state.romajiMayEnd
+        else { return [] }
+        var cost = Cost()
+        cost.pieces = 1
+        cost.marks = 1
+        cost.layoutKeys = 1
+        var next = State()
+        next.last = .layoutPunctuation(read)
+        next.syllablesBeforePunctuation = state.syllables
+        return [Move(end: position + 1, state: next, cost: cost, piece: .punctuation(.layout))]
+    }
+
     /// The cost of ending the run in `state`, or nil when it cannot end there.
     private func finishing(_ state: State) -> Cost? {
-        guard state.sokuon == nil, state.last != .qwertyPeriod, state.romajiMayEnd, state.layoutRomajiMayEnd(beforeEnglish: false) else { return nil }
+        guard state.sokuon == nil, state.last != .qwertyPeriod, state.last != .layoutPunctuation(","), state.romajiMayEnd,
+              state.layoutRomajiMayEnd(beforeEnglish: false)
+        else { return nil }
         var cost = Cost()
         cost.violations = state.violationsEndingEnglish()
         return cost
@@ -250,9 +272,15 @@ struct KeyRunCover {
             case english
             case qwertyComma
             case qwertyPeriod
+            /// 、。？ as the layout reads them.
+            case layoutPunctuation(Character)
 
             var isRomaji: Bool {
                 if case .romaji = self { true } else { false }
+            }
+
+            var isLayoutPunctuation: Bool {
+                if case .layoutPunctuation = self { true } else { false }
             }
         }
 
@@ -261,6 +289,8 @@ struct KeyRunCover {
         var syllables = 0
         /// The current romaji piece came right after romaji in the other fingering.
         var afterSwitch = false
+        /// Syllables of the romaji before the layout's punctuation, up to 3.
+        var syllablesBeforePunctuation = 0
         /// The current romaji piece came right after English.
         var afterEnglish = false
         /// The current piece in the layout while under two syllables, as read.

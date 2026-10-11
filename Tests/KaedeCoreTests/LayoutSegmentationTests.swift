@@ -77,3 +77,21 @@ private func notation(_ typed: String, _ layout: KeyboardLayout = .ebi) -> Strin
         #expect(notation(typed) == expected)
     }
 }
+
+@Suite struct LayoutPunctuationTests {
+    @Test(arguments: [
+        // Ebi puts 、 and 。 on QWERTY e and r, and ? on Shift+B
+        ("hsidelsid", "ja(L:kore) 、 ja(L:sore)"),
+        ("mdlghaB", "ja(L:desuka) ？"),
+        ("api;a,amajdfhosglfjdfkafmdlgnamsgoajjdja,dlfjdfigksmdlosghar msg.fhhsgusjs,did/affksmdlosgha",
+         "en(api) ja(L:hamadateikyousiteinaidesugadouyattetamesiteirunodesyouka) 。 ja(L:doujikkouwotomerebaiinodesyouka)"),
+    ])
+    func readsTheLayoutsPunctuationAfterItsRomaji(typed: String, expected: String) {
+        #expect(notation(typed) == expected)
+    }
+
+    @Test func keepsEnglishThatOnlyTheLayoutsPunctuationWouldMakeJapanese() {
+        // Ebi reads far as いあ。
+        #expect(notation("far") == "en(far)")
+    }
+}

@@ -73,11 +73,10 @@ public struct LineSegmenter: Sendable {
         return pieces.map(Unit.Kind.init)
     }
 
-    /// Whole-run romaji in the layout that QWERTY English spells too (has, read in Ebi as かお):
-    /// English, the way the user types English.
+    /// A run read wholly through the layout that QWERTY English spells too (has, read in Ebi as
+    /// かお; far, read as いあ。): English, the way the user types English.
     private func readsAsEnglishToo(_ run: String, _ pieces: [RunPiece]) -> Bool {
-        guard pieces.count == 1, case .romaji = pieces[0] else { return false }
-        return !RomajiParser.isPlainRomaji(run) && wordCover.englishWords(run) != nil
+        pieces.allSatisfy(\.readsThroughLayout) && !RomajiParser.isPlainRomaji(run) && wordCover.englishWords(run) != nil
     }
 
     private func kinds(of token: Token) -> [Unit.Kind] {
